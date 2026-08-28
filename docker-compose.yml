@@ -59,8 +59,12 @@ services:
       APP_ENV: ${APP_ENV:-production}
       APP_DEBUG: ${APP_DEBUG:-false}
       # php-fpm mendengarkan 9000; nginx memanggilnya.
+      DB_CONNECTION: mysql
       DB_HOST: hub-db
       DB_PORT: 3306
+      DB_DATABASE: ${DB_DATABASE:-rme_license_hub}
+      DB_USERNAME: ${DB_USERNAME:-hub}
+      DB_PASSWORD: ${DB_PASSWORD:-hubpassword}
       REDIS_HOST: hub-redis
       REDIS_PORT: 6379
       # Proses terpisah berbagi konfigurasi berikut:
@@ -118,8 +122,12 @@ services:
     env_file: [.env]
     environment:
       APP_ENV: ${APP_ENV:-production}
+      DB_CONNECTION: mysql
       DB_HOST: hub-db
       DB_PORT: 3306
+      DB_DATABASE: ${DB_DATABASE:-rme_license_hub}
+      DB_USERNAME: ${DB_USERNAME:-hub}
+      DB_PASSWORD: ${DB_PASSWORD:-hubpassword}
       BROADCAST_CONNECTION: reverb
       REVERB_HOST: hub-reverb
       REVERB_SERVER_HOST: 0.0.0.0
@@ -160,8 +168,12 @@ services:
     env_file: [.env]
     environment:
       APP_ENV: ${APP_ENV:-production}
+      DB_CONNECTION: mysql
       DB_HOST: hub-db
       DB_PORT: 3306
+      DB_DATABASE: ${DB_DATABASE:-rme_license_hub}
+      DB_USERNAME: ${DB_USERNAME:-hub}
+      DB_PASSWORD: ${DB_PASSWORD:-hubpassword}
       QUEUE_CONNECTION: redis
       REDIS_HOST: hub-redis
       REDIS_PORT: 6379
@@ -200,8 +212,12 @@ services:
     env_file: [.env]
     environment:
       APP_ENV: ${APP_ENV:-production}
+      DB_CONNECTION: mysql
       DB_HOST: hub-db
       DB_PORT: 3306
+      DB_DATABASE: ${DB_DATABASE:-rme_license_hub}
+      DB_USERNAME: ${DB_USERNAME:-hub}
+      DB_PASSWORD: ${DB_PASSWORD:-hubpassword}
       REDIS_HOST: hub-redis
       REDIS_PORT: 6379
       QUEUE_CONNECTION: redis
