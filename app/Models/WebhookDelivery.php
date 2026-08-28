@@ -2,12 +2,16 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class WebhookDelivery extends Model
 {
+    use HasUuids;
+
     protected $keyType = 'string';
+
     public $incrementing = false;
 
     protected $fillable = [
@@ -37,6 +41,6 @@ class WebhookDelivery extends Model
 
     public function canRetry(): bool
     {
-        return !$this->isDelivered() && $this->attempts < $this->max_attempts;
+        return ! $this->isDelivered() && $this->attempts < $this->max_attempts;
     }
 }

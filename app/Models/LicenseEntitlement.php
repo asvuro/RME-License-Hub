@@ -2,13 +2,17 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class LicenseEntitlement extends Model
 {
+    use HasUuids;
+
     protected $keyType = 'string';
+
     public $incrementing = false;
 
     protected $fillable = [
@@ -47,12 +51,12 @@ class LicenseEntitlement extends Model
 
     public function addons(): HasMany
     {
-        return $this->hasMany(LicenseAddon::class);
+        return $this->hasMany(LicenseAddon::class, 'entitlement_id');
     }
 
     public function activeAddons(): HasMany
     {
-        return $this->hasMany(LicenseAddon::class)->where('status', 'active');
+        return $this->hasMany(LicenseAddon::class, 'entitlement_id')->where('status', 'active');
     }
 
     public function forceDisableActions(): HasMany
@@ -67,6 +71,6 @@ class LicenseEntitlement extends Model
 
     public function isActive(): bool
     {
-        return $this->status === 'active' && !$this->isExpired();
+        return $this->status === 'active' && ! $this->isExpired();
     }
 }
