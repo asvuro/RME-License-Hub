@@ -224,8 +224,9 @@ class GroupApiController extends Controller
             'referred_at' => $data['referred_at'],
         ]);
 
-        $sourceInstanceId = $tenant->licenseKeys()->latest()->value('instance_id');
-        $this->relayService->broadcast($destination, GroupRealtimeEventType::ReferralCreated, $sourceInstanceId, $referral->id);
+        // source_branch_id must be the sender's hub Tenant UUID (client
+        // resolves it via Branch::where('hub_branch_id', ...)), not instance_id.
+        $this->relayService->broadcast($destination, GroupRealtimeEventType::ReferralCreated, $tenant->id, $referral->id);
 
         return response()->json(['data' => $this->referralPayload($referral)], 201);
     }
@@ -262,8 +263,8 @@ class GroupApiController extends Controller
 
         // Notify the OTHER party (not the caller, who already knows).
         $other = $isSource ? $referral->destinationBranch : $referral->sourceBranch;
-        $sourceInstanceId = $tenant->licenseKeys()->latest()->value('instance_id');
-        $this->relayService->broadcast($other, GroupRealtimeEventType::ReferralUpdated, $sourceInstanceId, $referral->id);
+        // source_branch_id must be the sender's hub Tenant UUID, not instance_id — see storeReferral().
+        $this->relayService->broadcast($other, GroupRealtimeEventType::ReferralUpdated, $tenant->id, $referral->id);
 
         return response()->json(['data' => $this->referralPayload($referral->fresh())]);
     }

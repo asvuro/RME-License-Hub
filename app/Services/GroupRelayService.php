@@ -7,6 +7,7 @@ use App\Events\GrupNotification;
 use App\Models\Group;
 use App\Models\Tenant;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 /**
  * Realtime relay service for the Group feature.
@@ -26,6 +27,10 @@ use Illuminate\Support\Facades\Log;
  */
 class GroupRelayService
 {
+    public function __construct(
+        protected WebhookDispatcher $webhookDispatcher,
+    ) {}
+
     /**
      * Relay a typed event from one tenant to all sibling tenants in its group.
      *
@@ -47,10 +52,6 @@ class GroupRelayService
             return 0;
         }
 
-        // Sender instance id (hub-issued license_keys.instance_id) — used as the
-        // source_branch_id so clients can ignore self-echo if needed.
-        $sourceInstanceId = $sender->licenseKeys()->latest()->value('instance_id');
-
         $siblings = Tenant::where('group_id', $sender->group_id)
             ->where('id', '!=', $sender->id)
             ->where('status', 'active')
@@ -58,7 +59,14 @@ class GroupRelayService
 
         $delivered = 0;
         foreach ($siblings as $sibling) {
-            $this->broadcast($sibling, $type, $sourceInstanceId, $resourceId, $extra);
+            // source_branch_id MUST be the sender's hub Tenant UUID (== the
+            // client's Branch.hub_branch_id), NOT its instance_id — the
+            // client's RealtimeEventProcessor resolves it via
+            // Branch::where('hub_branch_id', $data['source_branch_id']),
+            // which only matches a Tenant UUID. Passing instance_id here
+            // fails the client's `uuid` validation rule outright (found via
+            // real end-to-end testing).
+            $this->broadcast($sibling, $type, $sender->id, $resourceId, $extra);
             $delivered++;
         }
 
@@ -84,13 +92,36 @@ class GroupRelayService
             return;
         }
 
+        // Shared event_id across BOTH delivery paths (Reverb + HTTP fallback
+        // below) — the client dedupes by event_id (firstOrCreate), so it is
+        // always safe for both to arrive; whichever lands first is processed.
+        $eventId = Str::uuid()->toString();
+        $occurredAt = now()->toIso8601String();
+
         broadcast(new GrupNotification(
             instanceId: $instanceId,
             type: $type,
+            eventId: $eventId,
             resourceId: $resourceId,
             sourceBranchId: $sourceBranchId,
-            occurredAt: now()->toIso8601String(),
+            occurredAt: $occurredAt,
         ));
+
+        // Durable HTTP fallback: Reverb delivery is fire-and-forget with no
+        // guarantee the branch is even connected. Queue a signed HTTP push to
+        // the client's ingress (retried with backoff) so a disconnected
+        // branch still learns about the event once it comes back online,
+        // instead of silently missing it forever.
+        if ($tenant->group_id) {
+            $this->webhookDispatcher->dispatchGroupNotification($tenant, (string) $tenant->group_id, [
+                'event_id' => $eventId,
+                'type' => $type->value,
+                'resource_id' => $resourceId,
+                'source_branch_id' => $sourceBranchId,
+                'version' => GrupNotification::CONTRACT_VERSION,
+                'occurred_at' => $occurredAt,
+            ]);
+        }
     }
 
     /**
@@ -113,11 +144,20 @@ class GroupRelayService
             ];
         })->values();
 
+        // Nested under "group" — the client's MembershipSynchronizer::sync()
+        // validates 'group.id' / 'group.legal_name' / etc (a nested object),
+        // NOT flat top-level keys. A flat response passes context() itself
+        // (which just does ->json('data')) but fails validation one layer
+        // in, so this only surfaces once membership.updated is actually
+        // processed — found via real end-to-end testing of the full
+        // notification-processing path, not just the context() call alone.
         return [
-            'id' => $group->id,
-            'legal_name' => $group->legal_entity_name,
-            'legal_identifier' => null,
-            'status' => $group->status,
+            'group' => [
+                'id' => $group->id,
+                'legal_name' => $group->legal_entity_name,
+                'legal_identifier' => null,
+                'status' => $group->status,
+            ],
             'synced_at' => now()->toIso8601String(),
             'branches' => $branches,
         ];

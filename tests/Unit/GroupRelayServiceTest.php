@@ -8,6 +8,7 @@ use App\Models\Group;
 use App\Models\LicenseKey;
 use App\Models\Tenant;
 use App\Services\GroupRelayService;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Str;
 use Tests\DatabaseTestCase;
 
@@ -49,7 +50,7 @@ class GroupRelayServiceTest extends DatabaseTestCase
             instanceId: 'INST-A',
             type: GroupRealtimeEventType::PatientUpdated,
             resourceId: 'p1',
-            sourceBranchId: 'INST-SEND',
+            sourceBranchId: $sender->id,
             occurredAt: now()->toIso8601String(),
         );
         $this->assertSame('grup.notification', $event->broadcastAs());
@@ -58,6 +59,27 @@ class GroupRelayServiceTest extends DatabaseTestCase
             'private-'.GrupNotification::CHANNEL_PREFIX.'INST-A',
             $event->broadcastOn()[0]->name
         );
+    }
+
+    public function test_relayed_event_carries_the_senders_tenant_uuid_not_its_instance_id(): void
+    {
+        // Regression guard: the client's RealtimeEventProcessor resolves
+        // source_branch_id via Branch::where('hub_branch_id', ...) — a hub
+        // Tenant UUID column, never an instance_id string. Passing instance_id
+        // here fails the client's own `uuid` validation rule outright (found
+        // via real end-to-end HTTP testing against the actual client).
+        Event::fake([GrupNotification::class]);
+
+        $group = Group::create(['id' => Str::uuid()->toString(), 'name' => 'G']);
+        $sender = $this->tenantInGroup('INST-SEND', $group->id);
+        $this->tenantInGroup('INST-A', $group->id);
+
+        app(GroupRelayService::class)->relayToGroup($sender, GroupRealtimeEventType::PatientUpdated, 'p1');
+
+        Event::assertDispatched(GrupNotification::class, function (GrupNotification $event) use ($sender) {
+            return $event->sourceBranchId === $sender->id
+                && $event->sourceBranchId !== 'INST-SEND';
+        });
     }
 
     public function test_relay_returns_zero_when_sender_not_in_group(): void

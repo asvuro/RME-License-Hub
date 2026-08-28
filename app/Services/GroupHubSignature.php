@@ -9,7 +9,12 @@ use Illuminate\Support\Str;
  * Signs hub -> instance (RME-Backend Modules/Grup) egress requests, matching
  * the client's VerifyGroupHubSignature middleware exactly:
  *   material = "<timestamp>\n<request_id>\n<raw_body>"
- *   header   = X-RME-Signature: sha256=<hmac>
+ *   header   = X-RME-Signature: <hmac>  (bare hex — NOT prefixed with "sha256=",
+ *              unlike the unrelated license-webhook contract's
+ *              X-Hub-Signature-256. VerifyGroupHubSignature::handle() compares
+ *              the header directly against hash_hmac(...) with no prefix
+ *              stripped; a "sha256=" prefix here always fails signature
+ *              verification, found via real end-to-end testing.)
  * Plus the required X-RME-Timestamp, X-RME-Request-ID, X-RME-Group-ID,
  * X-RME-Target-Instance-ID headers. The secret is the per-instance
  * shared GRUP_HUB_HMAC_SECRET configured on both sides.
@@ -34,7 +39,7 @@ class GroupHubSignature
         $instanceId = (string) ($target->licenseKeys()->latest()->value('instance_id') ?? '');
 
         $material = $timestamp."\n".$requestId."\n".$rawBody;
-        $signature = 'sha256='.hash_hmac('sha256', $material, $this->secret);
+        $signature = hash_hmac('sha256', $material, $this->secret);
 
         return [
             'X-RME-Timestamp' => $timestamp,

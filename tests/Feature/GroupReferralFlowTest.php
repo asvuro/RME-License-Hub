@@ -69,8 +69,14 @@ class GroupReferralFlowTest extends TestCase
             'status' => 'requested',
         ]);
 
-        Event::assertDispatched(GrupNotification::class, function (GrupNotification $event) {
-            return $event->instanceId === 'INST-DST' && $event->type->value === 'referral.created';
+        Event::assertDispatched(GrupNotification::class, function (GrupNotification $event) use ($source) {
+            // sourceBranchId must be the sender's hub Tenant UUID (client
+            // resolves it via Branch::where('hub_branch_id', ...)), never
+            // an instance_id string — regression guard for a real bug found
+            // via end-to-end HTTP testing against the actual client.
+            return $event->instanceId === 'INST-DST'
+                && $event->type->value === 'referral.created'
+                && $event->sourceBranchId === $source->id;
         });
     }
 
@@ -136,8 +142,10 @@ class GroupReferralFlowTest extends TestCase
         $response->assertJsonPath('data.status', 'accepted');
         $this->assertSame('accepted', $referral->fresh()->status);
 
-        Event::assertDispatched(GrupNotification::class, function (GrupNotification $event) {
-            return $event->instanceId === 'INST-SRC' && $event->type->value === 'referral.updated';
+        Event::assertDispatched(GrupNotification::class, function (GrupNotification $event) use ($destination) {
+            return $event->instanceId === 'INST-SRC'
+                && $event->type->value === 'referral.updated'
+                && $event->sourceBranchId === $destination->id;
         });
     }
 
