@@ -246,11 +246,34 @@ gunzip -c storage/app/backups/rme_license_hub-YYYYMMDD-HHMMSS.sql.gz | \
     docker compose exec -T hub-db mysql -u hub -phubpassword rme_license_hub
 ```
 
-**Offsite**: dump tersimpan lokal di volume `hub-db-data` container
-`hub-app` — kalau host/disk hilang, dump ikut hilang bersama database
-aslinya. Sebelum produksi sungguhan, tambahkan sinkronisasi offsite (mis.
-`rclone`/`aws s3 sync` terjadwal setelah `hub:backup-database` selesai) —
-BELUM diimplementasikan di sesi ini, murni backup lokal.
+**Offsite (sudah diimplementasikan & diverifikasi sungguhan)**: `hub:backup-database`
+otomatis mengunggah dump ke disk S3-compatible `backup_offsite`
+(`config/filesystems.php`) setelah dump lokal berhasil — jalur unggahan
+gagal TIDAK menggagalkan backup (dump lokal tetap tersimpan, cuma dicatat
+sebagai warning). S3-compatible artinya bisa AWS S3 asli, DigitalOcean
+Spaces, Backblaze B2, Wasabi, atau MinIO self-hosted — bukan cuma AWS.
+
+Isi di `.env` untuk mengaktifkan (kosongkan `BACKUP_S3_BUCKET` untuk
+menonaktifkan — backup tetap jalan lokal saja tanpa error):
+
+```env
+BACKUP_S3_KEY=<access-key>
+BACKUP_S3_SECRET=<secret-key>
+BACKUP_S3_BUCKET=<nama-bucket>
+BACKUP_S3_REGION=auto                  # "auto" cukup untuk kebanyakan provider S3-compatible
+BACKUP_S3_ENDPOINT=                    # isi untuk non-AWS (mis. https://nyc3.digitaloceanspaces.com); kosongkan untuk AWS S3 asli
+BACKUP_S3_USE_PATH_STYLE=true          # true untuk MinIO/sebagian besar S3-compatible; AWS S3 asli boleh false
+```
+
+Retensi offsite mengikuti `LICENSE_BACKUP_RETENTION_DAYS` yang sama dengan
+lokal (backup terbaru tidak pernah dihapus).
+
+**Diverifikasi sungguhan (2026-08-28)**: dijalankan lawan MinIO nyata
+(bukan hanya `Storage::fake()`) — dump asli berhasil ter-upload, diunduh
+ulang dari bucket, dan **MD5 file lokal vs hasil unduh dari MinIO identik
+persis** (`98eb0fd1...`) — tanpa korupsi sedikit pun selama transfer.
+Jalur "bucket belum dikonfigurasi" juga diverifikasi aman (skip bersih,
+backup lokal tetap berhasil).
 
 **Backup kunci RSA (`storage/keys/*.pem`) — TERPISAH, MANUAL, TIDAK ikut
 `hub:backup-database`.** Sengaja tidak digabung ke dump rutin di atas —

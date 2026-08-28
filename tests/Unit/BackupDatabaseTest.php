@@ -4,6 +4,7 @@ namespace Tests\Unit;
 
 use App\Console\Commands\BackupDatabase;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 /**
@@ -86,5 +87,75 @@ class BackupDatabaseTest extends TestCase
 
         array_map('unlink', glob($dir.'/*'));
         rmdir($dir);
+    }
+
+    private function readyCommand(): BackupDatabase
+    {
+        $command = new BackupDatabase;
+        $command->setLaravel(app());
+        $command->setOutput(new \Illuminate\Console\OutputStyle(new \Symfony\Component\Console\Input\ArrayInput([]), new \Symfony\Component\Console\Output\BufferedOutput));
+
+        return $command;
+    }
+
+    public function test_offsite_sync_is_skipped_when_bucket_is_not_configured(): void
+    {
+        config(['filesystems.disks.backup_offsite.bucket' => null]);
+        Storage::fake('backup_offsite');
+
+        $tmp = tempnam(sys_get_temp_dir(), 'hub-backup-');
+        file_put_contents($tmp, 'fake dump content');
+
+        $command = $this->readyCommand();
+        $method = new \ReflectionMethod($command, 'syncOffsite');
+        $method->setAccessible(true);
+        $method->invoke($command, $tmp, 'db-test.sql.gz');
+
+        Storage::disk('backup_offsite')->assertMissing('hub-backups/db-test.sql.gz');
+        unlink($tmp);
+    }
+
+    public function test_offsite_sync_uploads_the_backup_when_configured(): void
+    {
+        config(['filesystems.disks.backup_offsite.bucket' => 'test-bucket']);
+        Storage::fake('backup_offsite');
+
+        $tmp = tempnam(sys_get_temp_dir(), 'hub-backup-');
+        file_put_contents($tmp, 'fake dump content');
+
+        $command = $this->readyCommand();
+        $method = new \ReflectionMethod($command, 'syncOffsite');
+        $method->setAccessible(true);
+        $method->invoke($command, $tmp, 'db-test.sql.gz');
+
+        Storage::disk('backup_offsite')->assertExists('hub-backups/db-test.sql.gz');
+        $this->assertSame('fake dump content', Storage::disk('backup_offsite')->get('hub-backups/db-test.sql.gz'));
+        unlink($tmp);
+    }
+
+    public function test_offsite_prune_keeps_the_newest_backup_even_if_older_than_retention(): void
+    {
+        config(['filesystems.disks.backup_offsite.bucket' => 'test-bucket']);
+        config(['license.backup_retention_days' => 7]);
+        Storage::fake('backup_offsite');
+        $disk = Storage::disk('backup_offsite');
+
+        $disk->put('hub-backups/old1.sql.gz', 'x');
+        $disk->put('hub-backups/old2.sql.gz', 'x');
+        $disk->put('hub-backups/newest.sql.gz', 'x');
+        // Flysystem's local fake driver uses real file mtimes — backdate the
+        // two "old" ones so they fall outside the 7-day retention window.
+        touch($disk->path('hub-backups/old1.sql.gz'), now()->subDays(100)->timestamp);
+        touch($disk->path('hub-backups/old2.sql.gz'), now()->subDays(90)->timestamp);
+        touch($disk->path('hub-backups/newest.sql.gz'), now()->subDays(80)->timestamp);
+
+        $command = $this->readyCommand();
+        $method = new \ReflectionMethod($command, 'pruneOffsite');
+        $method->setAccessible(true);
+        $method->invoke($command, $disk);
+
+        $disk->assertMissing('hub-backups/old1.sql.gz');
+        $disk->assertMissing('hub-backups/old2.sql.gz');
+        $disk->assertExists('hub-backups/newest.sql.gz');
     }
 }

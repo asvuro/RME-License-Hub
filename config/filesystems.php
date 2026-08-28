@@ -60,6 +60,27 @@ return [
             'report' => false,
         ],
 
+        // Offsite target for `hub:backup-database` (see App\Console\Commands\
+        // BackupDatabase). Deliberately a SEPARATE disk/credential set from
+        // "s3" above — that one is for general app file storage (if ever
+        // used), this one is scoped only to backup sync so rotating one
+        // credential never silently affects the other. S3-COMPATIBLE, not
+        // AWS-specific: works with real AWS S3, DigitalOcean Spaces,
+        // Backblaze B2, Wasabi, or a self-hosted MinIO — set BACKUP_S3_ENDPOINT
+        // for anything that isn't AWS itself. Disabled (skipped, not an
+        // error) when BACKUP_S3_BUCKET is unset.
+        'backup_offsite' => [
+            'driver' => 's3',
+            'key' => env('BACKUP_S3_KEY'),
+            'secret' => env('BACKUP_S3_SECRET'),
+            'region' => env('BACKUP_S3_REGION', 'auto'),
+            'bucket' => env('BACKUP_S3_BUCKET'),
+            'endpoint' => env('BACKUP_S3_ENDPOINT'),
+            'use_path_style_endpoint' => env('BACKUP_S3_USE_PATH_STYLE', true),
+            'throw' => false,
+            'report' => false,
+        ],
+
     ],
 
     /*
