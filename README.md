@@ -297,7 +297,8 @@ in the payload — it is pulled on demand through the `GroupRelay` REST endpoint
 | Grup realtime (Reverb) | ✅ Done | Verified end-to-end against the real RME-Backend client (2 real bugs found+fixed, see docs/reconciliation-with-grup-module.md §6) |
 | Grup referral relay | ✅ Done | Hub-authoritative group_referrals store (create/accept/reject lifecycle) |
 | Admin dashboard | ✅ Done | Livewire — tenant/tier/addon/license/group CRUD |
-| Docker deployment | ✅ Done | docker-compose.yml, see DEPLOYMENT.md |
+| Docker deployment | ✅ Verified for real | Full 7-container stack actually built & run (`docker compose up`), not just validated statically — found & fixed 6 real bugs (Dockerfile layer order, missing .dockerignore, missing PHP redis extension, missing DB_HOST/REVERB_HOST overrides on hub-queue/hub-scheduler). See DEPLOYMENT.md |
+| Reverb realtime (actual WebSocket server) | ✅ Verified for real | A real WebSocket client connected through nginx to the containerized Reverb server, authenticated via `/realtime/auth`, and received a live `grup.notification` broadcast — not simulated via manual queue processing |
 | Tests (critical paths) | ✅ Done | 76/76 passing — entitlement calc, force-disable, license activation/heartbeat, admin guard, referral flow, migration idempotency |
 | Local dev secrets (RSA/webhook/HMAC) | ✅ Generated | Local-testing values only — regenerate fresh on the actual production server, never reuse dev-generated secrets (see DEPLOYMENT.md §2, §5) |
 | Live HTTP integration test vs a running RME-Backend instance | ✅ Done | Both `php artisan serve` processes live, real Sanctum-authenticated HTTP call to RME-Backend's `POST /api/v1/grup/referrals`, full round trip through the real hub and back — found + fixed a 3rd real bug (missing `patient_snapshot` in referral GET response). See docs/reconciliation-with-grup-module.md §7 |
