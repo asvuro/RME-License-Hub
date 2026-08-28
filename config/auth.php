@@ -42,6 +42,13 @@ return [
             'driver' => 'session',
             'provider' => 'users',
         ],
+
+        // Stateless service-to-service guard for tenant (branch) instances that
+        // authenticate to Reverb / broadcasting auth with their API token.
+        'tenant' => [
+            'driver' => 'tenant-token',
+            'provider' => null,
+        ],
     ],
 
     /*
