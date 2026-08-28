@@ -18,6 +18,7 @@ FROM php:8.4-fpm
 #    found" — ditemukan lewat run container sungguhan, bukan review.
 RUN apt-get update && apt-get install -y --no-install-recommends \
         libzip-dev libicu-dev libonig-dev libpng-dev $PHPIZE_DEPS \
+        default-mysql-client \
     && docker-php-ext-install \
         pdo_mysql bcmath mbstring intl zip opcache pcntl \
     && pecl install redis && docker-php-ext-enable redis \

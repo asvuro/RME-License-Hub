@@ -315,6 +315,7 @@ class HubAdminController extends Controller
                     'total' => Tenant::count(),
                     'active' => Tenant::where('status', 'active')->count(),
                     'suspended' => Tenant::where('status', 'suspended')->count(),
+                    'offline' => Tenant::offline()->count(),
                 ],
                 'groups' => Group::count(),
                 'licenses' => [

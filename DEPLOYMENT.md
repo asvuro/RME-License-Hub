@@ -209,6 +209,61 @@ docker compose up -d
 
 ---
 
+## 9a. Monitoring & Backup
+
+**Monitoring (tenant offline)**: `license:check-heartbeats` (dijadwalkan tiap
+jam via `hub-scheduler`) mengecek tenant `active` yang belum heartbeat lebih
+dari `LICENSE_MAX_OFFLINE_DAYS` hari (default 14), lalu mengirim email
+`TenantOfflineNotification` ke semua hub admin aktif. Sekali per periode
+offline (dedup via `tenants.offline_alert_sent_at`, direset otomatis saat
+tenant heartbeat lagi) — tidak spam. Muncul juga sebagai widget "Tenant
+offline" di dashboard admin (`/hub/dashboard`).
+
+**Wajib** agar alert ini benar-benar terkirim: isi `MAIL_MAILER`/`MAIL_HOST`/
+dst di `.env` dengan SMTP sungguhan (lihat `.env.example`). Tanpa ini,
+`MAIL_MAILER=log` (default lokal) hanya menulis email ke
+`storage/logs/laravel.log` — tidak ada yang benar-benar diberi tahu.
+
+```bash
+# Cek manual kapan saja (di luar jadwal):
+docker compose exec hub-app php artisan license:check-heartbeats
+```
+
+**Backup database**: `hub:backup-database` (dijadwalkan harian 02:00 via
+`hub-scheduler`) men-dump seluruh database (`mysqldump --single-transaction`,
+di-gzip) ke `storage/app/backups/`, menyimpan `LICENSE_BACKUP_RETENTION_DAYS`
+hari (default 30) — backup terbaru TIDAK PERNAH dihapus otomatis apa pun
+retensinya. Volume `hub-db-data` Docker HANYA melindungi dari restart
+container, BUKAN pengganti backup — kalau volume/disk-nya sendiri hilang,
+data ikut hilang tanpa dump ini.
+
+```bash
+# Backup manual kapan saja:
+docker compose exec hub-app php artisan hub:backup-database
+
+# Restore (HATI-HATI — timpa database aktif):
+gunzip -c storage/app/backups/rme_license_hub-YYYYMMDD-HHMMSS.sql.gz | \
+    docker compose exec -T hub-db mysql -u hub -phubpassword rme_license_hub
+```
+
+**Offsite**: dump tersimpan lokal di volume `hub-db-data` container
+`hub-app` — kalau host/disk hilang, dump ikut hilang bersama database
+aslinya. Sebelum produksi sungguhan, tambahkan sinkronisasi offsite (mis.
+`rclone`/`aws s3 sync` terjadwal setelah `hub:backup-database` selesai) —
+BELUM diimplementasikan di sesi ini, murni backup lokal.
+
+**Backup kunci RSA (`storage/keys/*.pem`) — TERPISAH, MANUAL, TIDAK ikut
+`hub:backup-database`.** Sengaja tidak digabung ke dump rutin di atas —
+membundel secret ke direktori yang bisa disalin/di-rsync rutin memperluas
+permukaan risiko. Prosedur: setelah `php artisan license:generate-keys`,
+salin `license_private.pem` SEKALI ke vault/password manager tim (bukan ke
+tempat yang sama dengan backup DB). Kalau file ini hilang tanpa backup,
+hub tidak bisa lagi menerbitkan/refresh token lisensi ke client manapun
+sampai kunci baru dibuat DAN didistribusikan ulang ke semua instalasi
+RME-Backend (public key baru harus disebar manual — bukan proses otomatis).
+
+---
+
 ## Troubleshooting
 
 - **Reverb tidak terhubung dari client**: pastikan `REVERB_HOST`/.env client =

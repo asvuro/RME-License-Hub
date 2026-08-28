@@ -19,3 +19,15 @@ Schedule::command('license:process-scheduled')
 Schedule::job(new RetryFailedWebhooks)
     ->everyFifteenMinutes()
     ->withoutOverlapping();
+
+// Monitoring: alert hub admins about tenants that stopped phoning home.
+Schedule::command('license:check-heartbeats')
+    ->hourly()
+    ->withoutOverlapping();
+
+// Backup: daily database dump (see DEPLOYMENT.md for the RSA key backup
+// procedure — deliberately NOT automated into this rotating dump directory).
+Schedule::command('hub:backup-database')
+    ->dailyAt('02:00')
+    ->withoutOverlapping()
+    ->runInBackground();

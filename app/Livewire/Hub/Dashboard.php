@@ -25,6 +25,7 @@ class Dashboard extends HubComponent
                 'tenants' => Tenant::count(),
                 'tenants_active' => Tenant::where('status', 'active')->count(),
                 'tenants_suspended' => Tenant::where('status', 'suspended')->count(),
+                'tenants_offline' => Tenant::offline()->count(),
                 'groups' => Group::count(),
                 'tiers' => Tier::where('is_active', true)->count(),
                 'addons' => ModuleModel::where('is_active', true)->count(),
@@ -36,6 +37,7 @@ class Dashboard extends HubComponent
             ],
             'recent_audit' => HubAuditLog::with('tenant')->latest()->limit(10)->get(),
             'recent_webhooks' => WebhookDelivery::with('tenant')->latest()->limit(10)->get(),
+            'offline_tenants' => Tenant::offline()->orderBy('last_heartbeat_at')->limit(10)->get(),
         ])->layout('layouts.hub');
     }
 }

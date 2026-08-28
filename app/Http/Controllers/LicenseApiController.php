@@ -207,7 +207,10 @@ class LicenseApiController extends Controller
             'metadata' => $request->only(['timestamp']),
         ]);
 
-        $tenant->update(['last_heartbeat_at' => now()]);
+        // Clear any standing offline alert — a fresh one can fire the next
+        // time this tenant goes quiet for max_offline_days (see Tenant::
+        // isOffline() / CheckTenantHeartbeats).
+        $tenant->update(['last_heartbeat_at' => now(), 'offline_alert_sent_at' => null]);
 
         // Check entitlement status
         $entitlement = $tenant->activeEntitlement;

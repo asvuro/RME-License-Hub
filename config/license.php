@@ -50,10 +50,24 @@ return [
     |--------------------------------------------------------------------------
     | Heartbeat Policy
     |--------------------------------------------------------------------------
-    | Maximum days the client can run without phone-home heartbeat.
-    | After this, the license is marked stale.
+    | Maximum days a tenant can go without a phone-home heartbeat before
+    | `license:check-heartbeats` (scheduled hourly) emails hub admins a
+    | TenantOfflineNotification and the tenant shows up on the admin
+    | dashboard's "offline" widget. Does NOT change the tenant/entitlement
+    | status — this is monitoring/alerting only, not an enforcement action.
     */
     'max_offline_days' => (int) env('LICENSE_MAX_OFFLINE_DAYS', 14),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Backup Policy
+    |--------------------------------------------------------------------------
+    | `hub:backup-database` (scheduled daily at 02:00) keeps this many days
+    | of gzipped mysqldump backups in storage/app/backups before pruning
+    | (always keeps at least the newest one). Does NOT cover storage/keys/
+    | (RSA license-signing keys) — see DEPLOYMENT.md for that procedure.
+    */
+    'backup_retention_days' => (int) env('LICENSE_BACKUP_RETENTION_DAYS', 30),
 
     /*
     |--------------------------------------------------------------------------

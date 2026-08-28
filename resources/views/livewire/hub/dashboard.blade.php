@@ -13,7 +13,24 @@
         <x-hub.stat label="Licenses (revoked)" :value="$stats['licenses_revoked']" />
         <x-hub.stat label="Webhooks pending" :value="$stats['webhooks_pending']" />
         <x-hub.stat label="Webhooks failed" :value="$stats['webhooks_failed']" />
+        <x-hub.stat label="Tenants offline" :value="$stats['tenants_offline']" />
     </div>
+
+    @if ($offline_tenants->isNotEmpty())
+        <section class="mt-8 rounded-lg border border-amber-300 bg-amber-50 p-4 dark:border-amber-700 dark:bg-amber-900/20">
+            <h2 class="mb-3 text-lg font-semibold text-amber-800 dark:text-amber-300">⚠ Tenant offline (belum heartbeat &gt; {{ config('license.max_offline_days', 14) }} hari)</h2>
+            <ul class="space-y-2 text-sm">
+                @foreach ($offline_tenants as $tenant)
+                    <li class="border-b border-amber-100 pb-2 dark:border-amber-800">
+                        <span class="font-medium">{{ $tenant->client_name }}</span>
+                        <span class="text-gray-500"> ({{ $tenant->client_code }})</span>
+                        <span class="text-gray-500"> &middot; terakhir terlihat: {{ $tenant->last_heartbeat_at?->diffForHumans() ?? 'belum pernah' }}</span>
+                    </li>
+                @endforeach
+            </ul>
+            <a href="{{ route('hub.tenants.index') }}" class="mt-2 inline-block text-sm text-indigo-600 hover:underline">Lihat semua tenant &rarr;</a>
+        </section>
+    @endif
 
     <div class="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-2">
         <section class="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">

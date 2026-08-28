@@ -25,11 +25,12 @@ class Tenant extends Model implements AuthenticatableContract
         'id', 'group_id', 'client_code', 'client_name', 'legal_entity_name',
         'contact_email', 'contact_phone', 'address', 'status',
         'api_token_hash', 'webhook_secret_hash', 'last_heartbeat_at',
-        'instance_url', 'webhook_secret', 's2s_token',
+        'instance_url', 'webhook_secret', 's2s_token', 'offline_alert_sent_at',
     ];
 
     protected $casts = [
         'last_heartbeat_at' => 'datetime',
+        'offline_alert_sent_at' => 'datetime',
         // Encrypted at rest so the hub can recover the plaintext to sign pushes
         // to this client. Never expose these via API responses.
         'webhook_secret' => 'encrypted',
@@ -94,5 +95,34 @@ class Tenant extends Model implements AuthenticatableContract
     public function isInGroup(): bool
     {
         return $this->group_id !== null;
+    }
+
+    /**
+     * True when this tenant has never phoned home, or hasn't in longer than
+     * `license.max_offline_days` — the threshold CheckTenantHeartbeats alerts
+     * on. Kept as a single source of truth (with scopeOffline() below) so the
+     * command and the dashboard widget can never silently disagree on the
+     * definition of "offline".
+     */
+    public function isOffline(): bool
+    {
+        $maxDays = (int) config('license.max_offline_days', 14);
+
+        return $this->last_heartbeat_at === null
+            || $this->last_heartbeat_at->lt(now()->subDays($maxDays));
+    }
+
+    /**
+     * Query-builder form of isOffline(), scoped to active tenants only
+     * (suspended/terminated tenants are expected to be offline).
+     */
+    public function scopeOffline($query)
+    {
+        $threshold = now()->subDays((int) config('license.max_offline_days', 14));
+
+        return $query->where('status', 'active')
+            ->where(function ($q) use ($threshold) {
+                $q->whereNull('last_heartbeat_at')->orWhere('last_heartbeat_at', '<', $threshold);
+            });
     }
 }
