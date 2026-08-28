@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -9,11 +10,12 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Tenant extends Model
 {
+    use HasFactory;
     protected $keyType = 'string';
     public $incrementing = false;
 
     protected $fillable = [
-        'group_id', 'client_code', 'client_name', 'legal_entity_name',
+        'id', 'group_id', 'client_code', 'client_name', 'legal_entity_name',
         'contact_email', 'contact_phone', 'address', 'status',
         'api_token_hash', 'webhook_secret_hash', 'last_heartbeat_at',
     ];

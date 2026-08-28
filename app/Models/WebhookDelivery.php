@@ -2,16 +2,18 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class WebhookDelivery extends Model
 {
+    use HasFactory;
     protected $keyType = 'string';
     public $incrementing = false;
 
     protected $fillable = [
-        'tenant_id', 'event_type', 'event_id', 'payload',
+        'id', 'tenant_id', 'event_type', 'event_id', 'payload',
         'url', 'attempts', 'max_attempts',
         'last_response_code', 'last_response_body',
         'delivered_at', 'next_attempt_at',

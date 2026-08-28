@@ -2,17 +2,19 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class LicenseEntitlement extends Model
 {
+    use HasFactory;
     protected $keyType = 'string';
     public $incrementing = false;
 
     protected $fillable = [
-        'license_key_id', 'tenant_id', 'tier_id', 'status',
+        'id', 'license_key_id', 'tenant_id', 'tier_id', 'status',
         'base_max_users', 'base_max_branches',
         'effective_max_users', 'effective_max_branches',
         'effective_modules', 'valid_from', 'valid_until',
@@ -47,12 +49,12 @@ class LicenseEntitlement extends Model
 
     public function addons(): HasMany
     {
-        return $this->hasMany(LicenseAddon::class);
+        return $this->hasMany(LicenseAddon::class, 'entitlement_id');
     }
 
     public function activeAddons(): HasMany
     {
-        return $this->hasMany(LicenseAddon::class)->where('status', 'active');
+        return $this->hasMany(LicenseAddon::class, 'entitlement_id')->where('status', 'active');
     }
 
     public function forceDisableActions(): HasMany
