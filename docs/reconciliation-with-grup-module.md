@@ -186,3 +186,52 @@ proxy GET generik — tidak ada tempat menyimpan rujukan. Lihat
 `app/Http/Controllers/GroupApiController.php` (`storeReferral`/
 `updateReferral`/`listReferrals`/`showReferral`) + tabel `group_referrals`
 baru (hub-authoritative, sumber kebenaran status rujukan lintas cabang).
+
+---
+
+## 7. Verifikasi END-TO-END lewat HTTP RME-Backend sungguhan (2026-08-28, lanjutan §6)
+
+Setelah §6 (verifikasi via `GroupHubClient` langsung lewat tinker), dilakukan
+verifikasi lebih dalam: `php artisan serve` KEDUA repo bersamaan (hub :8090,
+RME-Backend :8000), request HTTP asli ke endpoint RME-Backend sendiri
+(`POST /api/v1/grup/referrals`, otentikasi Sanctum user sungguhan dengan RBAC
+dinamis, pasien sungguhan dari `GeneralPatient`) — BUKAN memanggil
+`GroupHubClient` langsung lagi, supaya jalur penuh (controller → FormRequest
+→ service → HTTP client → hub → balik) benar-benar teruji.
+
+**1 bug NYATA ketiga ditemukan**: `GET /api/v1/group/relay/referrals/{id}`
+(dipakai `RealtimeEventProcessor::syncReferral()` di client untuk membangun
+ulang baris lokal dari event `referral.*`) TIDAK menyertakan
+`source_patient_id` maupun `patient_snapshot` di response — field yang justru
+WAJIB dibaca client (`$data['source_patient_id']`, `$data['patient_snapshot']`).
+Akibatnya sinkronisasi event gagal senyap (`failure_reason` tercatat, retry
+tak pernah berhasil). Diperbaiki di `referralPayload()` (GroupApiController) +
+test regresi baru (`test_referral_payload_includes_patient_snapshot_for_client_resync`).
+
+**Alur penuh diverifikasi jalan lewat HTTP sungguhan, ujung ke ujung:**
+1. `POST /api/v1/grup/referrals` (RME-Backend, user asli) → tersimpan lokal
+   DENGAN `hub_referral_id` terisi dari hub asli, snapshot pasien asli ikut
+   terkirim.
+2. Hub menyimpan record yang identik (`GET .../relay/referrals/{id}` cocok).
+3. `PATCH .../relay/referrals/{id}` (simulasi cabang tujuan) → status
+   `requested` → `accepted` di hub.
+4. Simulasi event `referral.updated` masuk ke `RealtimeEventProcessor::accept()`
+   di RME-Backend (mewakili apa yang akan terjadi kalau Reverb terkirim) →
+   baris lokal RME-Backend ikut ter-update ke `accepted`. BERHASIL setelah fix
+   bug #3 di atas.
+
+**Gap yang MASIH terbuka, terkonfirmasi via pengecekan kode langsung (bukan
+dugaan)**: hub `App\Services\WebhookDispatcher` HANYA punya method untuk event
+lisensi/force-disable (`dispatchLicenseUpdate`, `dispatchModulesSync`,
+`dispatchForceDisableWarning`, dst) — **TIDAK ADA** method untuk push event
+Grup (`referral.created/updated`, `membership.updated`, `patient.updated`) ke
+endpoint ingress client (`POST /v1/grup/relay/notifications`). Ini artinya
+delivery event Grup hub→client **hanya lewat Reverb**, tanpa fallback HTTP
+push maupun *durable pull cursor* — sama seperti yang sudah ditandai di §4
+poin 5 sebelum verifikasi ini, sekarang terkonfirmasi belum ada implementasi
+sama sekali di kode hub (bukan cuma pertanyaan desain terbuka). Perlu
+diputuskan & dibangun sebelum produksi: kalau koneksi Reverb sebuah cabang
+putus, cabang itu TIDAK PUNYA cara lain mengetahui status rujukannya berubah
+sampai ada trigger lain (mis. user buka halaman rujukan dan index() di-refresh
+manual — TAPI `index()` di client hanya query tabel LOKAL, bukan re-fetch dari
+hub, jadi bahkan itu pun tidak akan ke-update tanpa event masuk).

@@ -299,8 +299,9 @@ in the payload — it is pulled on demand through the `GroupRelay` REST endpoint
 | Admin dashboard | ✅ Done | Livewire — tenant/tier/addon/license/group CRUD |
 | Docker deployment | ✅ Done | docker-compose.yml, see DEPLOYMENT.md |
 | Tests (critical paths) | ✅ Done | 76/76 passing — entitlement calc, force-disable, license activation/heartbeat, admin guard, referral flow, migration idempotency |
-| Production secrets (RSA/webhook/HMAC) | ⏳ Not generated | Placeholders only — see DEPLOYMENT.md §2, §5 before real deployment |
-| Live integration test vs a running RME-Backend instance | ⏳ Not yet | Verified vs RME-Backend's `GroupHubClient` directly (tinker); not yet via RME-Backend's own HTTP endpoints end-to-end |
+| Local dev secrets (RSA/webhook/HMAC) | ✅ Generated | Local-testing values only — regenerate fresh on the actual production server, never reuse dev-generated secrets (see DEPLOYMENT.md §2, §5) |
+| Live HTTP integration test vs a running RME-Backend instance | ✅ Done | Both `php artisan serve` processes live, real Sanctum-authenticated HTTP call to RME-Backend's `POST /api/v1/grup/referrals`, full round trip through the real hub and back — found + fixed a 3rd real bug (missing `patient_snapshot` in referral GET response). See docs/reconciliation-with-grup-module.md §7 |
+| Grup event delivery when Reverb is disconnected | ⚠️ Known gap | Hub only delivers `referral.*`/`membership.updated` via Reverb broadcast — `WebhookDispatcher` has no method for these events, so there is no HTTP push or pull-cursor fallback if a branch's Reverb connection drops. See docs/reconciliation-with-grup-module.md §7 |
 
 ---
 

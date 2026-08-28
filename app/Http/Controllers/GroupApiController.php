@@ -287,6 +287,11 @@ class GroupApiController extends Controller
             'group_id' => $referral->group_id,
             'source_branch_id' => $referral->source_branch_id,
             'destination_branch_id' => $referral->destination_branch_id,
+            // Both required by the client's RealtimeEventProcessor::syncReferral()
+            // to (re)build its LOCAL GroupReferral row from a referral.* event —
+            // omitting them silently broke sync (found via real end-to-end test).
+            'source_patient_id' => $referral->source_patient_id,
+            'patient_snapshot' => $referral->patient_snapshot,
             'status' => $referral->status,
             'reason' => $referral->reason,
             'clinical_summary' => $referral->clinical_summary,

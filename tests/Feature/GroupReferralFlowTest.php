@@ -229,6 +229,32 @@ class GroupReferralFlowTest extends TestCase
         $response->assertJsonCount(1, 'data.data');
     }
 
+    public function test_referral_payload_includes_patient_snapshot_for_client_resync(): void
+    {
+        // Regression guard: RME-Backend's RealtimeEventProcessor::syncReferral()
+        // rebuilds its LOCAL row from this exact response and REQUIRES
+        // source_patient_id + patient_snapshot — omitting them (a real bug found
+        // via end-to-end testing against the actual client) breaks resync silently.
+        $group = Group::factory()->create();
+        [$source, $sourceToken] = $this->tenantWithToken($group->id, 'INST-SRC');
+        [$destination] = $this->tenantWithToken($group->id, 'INST-DST');
+
+        $referral = GroupReferral::factory()->create([
+            'group_id' => $group->id,
+            'source_branch_id' => $source->id,
+            'destination_branch_id' => $destination->id,
+            'source_patient_id' => '4321',
+            'patient_snapshot' => ['name' => 'Budi Santoso'],
+        ]);
+
+        $response = $this->withHeader('Authorization', 'Bearer '.$sourceToken)
+            ->getJson("/api/v1/group/relay/referrals/{$referral->id}");
+
+        $response->assertOk();
+        $response->assertJsonPath('data.source_patient_id', '4321');
+        $response->assertJsonPath('data.patient_snapshot.name', 'Budi Santoso');
+    }
+
     public function test_listing_route_does_not_fall_through_to_the_generic_relay_proxy(): void
     {
         // Regression guard: /relay/referrals must NOT be swallowed by the
