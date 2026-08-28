@@ -48,14 +48,17 @@ class ModuleSyncService
 
     /**
      * Push the current module statuses to a tenant via webhook.
+     *
+     * @return int The number of module statuses pushed (0 if the tenant has
+     *             no active entitlement to sync).
      */
-    public function pushToTenant(Tenant $tenant): void
+    public function pushToTenant(Tenant $tenant): int
     {
         $entitlement = $tenant->activeEntitlement;
         if (! $entitlement) {
             Log::warning("ModuleSyncService: No active entitlement for tenant {$tenant->client_code}");
 
-            return;
+            return 0;
         }
 
         $this->calculator->recalculate($entitlement);
@@ -64,6 +67,8 @@ class ModuleSyncService
         $this->webhookDispatcher->dispatchModulesSync($tenant, $statuses);
 
         Log::info('ModuleSyncService: Pushed '.count($statuses)." modules to tenant {$tenant->client_code}");
+
+        return count($statuses);
     }
 
     /**

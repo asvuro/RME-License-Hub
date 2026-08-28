@@ -43,6 +43,18 @@ class HubAdminController extends Controller
 
         $group = Group::create(array_merge($data, ['id' => Str::uuid()->toString()]));
 
+        HubAuditLog::create([
+            'tenant_id' => null,
+            'event_type' => 'group.created',
+            'details' => [
+                'group_id' => $group->id,
+                'name' => $group->name,
+                'legal_entity_name' => $group->legal_entity_name,
+            ],
+            'actor_id' => $request->user()?->id,
+            'actor_type' => 'admin',
+        ]);
+
         return response()->json(['success' => true, 'data' => $group], 201);
     }
 
@@ -290,16 +302,38 @@ class HubAdminController extends Controller
 
     // ─── Sync ───
 
-    public function pushModuleSync(Tenant $tenant): JsonResponse
+    public function pushModuleSync(Request $request, Tenant $tenant): JsonResponse
     {
-        $this->moduleSyncService->pushToTenant($tenant);
+        $moduleCount = $this->moduleSyncService->pushToTenant($tenant);
+
+        HubAuditLog::create([
+            'tenant_id' => $tenant->id,
+            'event_type' => 'modules.synced',
+            'details' => [
+                'tenant_id' => $tenant->id,
+                'tenant_code' => $tenant->client_code,
+                'modules_pushed' => $moduleCount,
+            ],
+            'actor_id' => $request->user()?->id,
+            'actor_type' => 'admin',
+        ]);
 
         return response()->json(['success' => true, 'message' => 'Module sync webhook dispatched.']);
     }
 
-    public function pushAllModuleSync(): JsonResponse
+    public function pushAllModuleSync(Request $request): JsonResponse
     {
         $count = $this->moduleSyncService->pushToAllTenants();
+
+        HubAuditLog::create([
+            'tenant_id' => null,
+            'event_type' => 'modules.synced_all',
+            'details' => [
+                'tenants_synced' => $count,
+            ],
+            'actor_id' => $request->user()?->id,
+            'actor_type' => 'admin',
+        ]);
 
         return response()->json(['success' => true, 'message' => "Sync dispatched to {$count} tenants."]);
     }
