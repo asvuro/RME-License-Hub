@@ -1,7 +1,6 @@
 <?php
 
 use App\Http\Controllers\GroupApiController;
-use App\Http\Controllers\GroupRelayController;
 use App\Http\Controllers\HubAdminController;
 use App\Http\Controllers\HubAuthController;
 use App\Http\Controllers\LicenseApiController;
@@ -42,7 +41,17 @@ Route::prefix('v1/group')->middleware(['auth:tenant', 'throttle:120,1'])->group(
     Route::get('/context', [GroupApiController::class, 'context']);
     Route::post('/realtime/auth', [GroupApiController::class, 'realtimeAuth']);
     Route::post('/relay', [GroupApiController::class, 'relay']);
-    // Hub-proxied clinical/referral fetch (signed egress to target branch).
+
+    // Referrals are stored HUB-SIDE (authoritative, both branches must agree
+    // on status) — registered BEFORE the generic proxy wildcard below so
+    // these specific routes win instead of falling through to relayProxy.
+    Route::get('/relay/referrals', [GroupApiController::class, 'listReferrals']);
+    Route::post('/relay/referrals', [GroupApiController::class, 'storeReferral']);
+    Route::get('/relay/referrals/{referralId}', [GroupApiController::class, 'showReferral']);
+    Route::patch('/relay/referrals/{referralId}', [GroupApiController::class, 'updateReferral']);
+
+    // Hub-proxied clinical fetch (signed egress to target branch) — PHI never
+    // touches the hub's own DB, so patient data is always proxied live.
     Route::get('/relay/{path}', [GroupApiController::class, 'relayProxy'])->where('path', '.*');
 });
 

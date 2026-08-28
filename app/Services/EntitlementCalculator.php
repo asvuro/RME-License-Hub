@@ -6,7 +6,6 @@ use App\Models\LicenseAddon;
 use App\Models\LicenseEntitlement;
 use App\Models\Tier;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 /**
@@ -47,13 +46,13 @@ class EntitlementCalculator
         // — otherwise add-ons created in the same request (e.g. via addAddon)
         // are invisible to the recalculation.
         foreach ($entitlement->activeAddons()->get() as $addon) {
-            if (!$addon->isCurrentlyActive()) {
+            if (! $addon->isCurrentlyActive()) {
                 continue;
             }
 
             switch ($addon->addon_type) {
                 case 'module':
-                    if ($addon->target_module_slug && !in_array($addon->target_module_slug, $effectiveModules)) {
+                    if ($addon->target_module_slug && ! in_array($addon->target_module_slug, $effectiveModules)) {
                         $effectiveModules[] = $addon->target_module_slug;
                     }
                     break;

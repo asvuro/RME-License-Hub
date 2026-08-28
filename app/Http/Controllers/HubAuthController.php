@@ -18,21 +18,21 @@ class HubAuthController extends Controller
 
         $admin = HubAdmin::where('email', $request->email)->first();
 
-        if (!$admin || !Hash::check($request->password, $admin->password)) {
+        if (! $admin || ! Hash::check($request->password, $admin->password)) {
             return response()->json([
                 'success' => false,
                 'message' => 'Invalid credentials.',
             ], 401);
         }
 
-        if (!$admin->is_active) {
+        if (! $admin->is_active) {
             return response()->json([
                 'success' => false,
                 'message' => 'Account is disabled.',
             ], 403);
         }
 
-        $token = $admin->createToken('hub-admin', ['role:' . $admin->role])->plainTextToken;
+        $token = $admin->createToken('hub-admin', ['role:'.$admin->role])->plainTextToken;
 
         return response()->json([
             'success' => true,

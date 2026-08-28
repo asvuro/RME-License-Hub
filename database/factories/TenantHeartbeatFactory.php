@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Models\Tenant;
 use App\Models\TenantHeartbeat;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Str;
@@ -16,7 +17,7 @@ class TenantHeartbeatFactory extends Factory
     public function definition(): array
     {
         return [
-            'tenant_id' => \App\Models\Tenant::factory(),
+            'tenant_id' => Tenant::factory(),
             'instance_id' => 'INST-'.strtoupper(Str::random(16)),
             'license_key' => 'LIC-'.strtoupper(Str::random(20)),
             'hardware_id' => 'HW-'.strtoupper(Str::random(8)),

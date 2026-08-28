@@ -3,13 +3,13 @@
 namespace Tests\Feature;
 
 use App\Models\LicenseKey;
-use App\Models\LicenseEntitlement;
 use App\Models\Tenant;
 use App\Models\Tier;
 use App\Services\EntitlementCalculator;
 use App\Services\RosterService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Config;
+use Illuminate\Support\Str;
 use Tests\TestCase;
 
 /**
@@ -49,7 +49,7 @@ class LicenseHeartbeatTest extends TestCase
         $public = openssl_pkey_get_details($keyPair)['key'];
 
         $dir = storage_path('keys');
-        if (!is_dir($dir)) {
+        if (! is_dir($dir)) {
             mkdir($dir, 0700, true);
         }
         $privPath = $dir.'/test_license_private.pem';
@@ -81,7 +81,7 @@ class LicenseHeartbeatTest extends TestCase
             tierId: $tier->id,
         );
 
-        $s2sToken = 'rme_hub_'.\Illuminate\Support\Str::random(48);
+        $s2sToken = 'rme_hub_'.Str::random(48);
         $tenant->update(['api_token_hash' => hash('sha256', $s2sToken)]);
 
         return [$tenant, $licenseKey, $entitlement, $s2sToken];

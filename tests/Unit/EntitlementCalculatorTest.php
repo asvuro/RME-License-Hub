@@ -2,11 +2,11 @@
 
 namespace Tests\Unit;
 
+use App\Models\LicenseKey;
 use App\Models\Tenant;
 use App\Models\Tier;
-use App\Models\LicenseKey;
 use App\Services\EntitlementCalculator;
-use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Str;
 use Tests\DatabaseTestCase;
 
 class EntitlementCalculatorTest extends DatabaseTestCase
@@ -26,9 +26,9 @@ class EntitlementCalculatorTest extends DatabaseTestCase
     private function licenseKey(Tenant $tenant): LicenseKey
     {
         return LicenseKey::create([
-            'id' => \Illuminate\Support\Str::uuid()->toString(),
+            'id' => Str::uuid()->toString(),
             'tenant_id' => $tenant->id,
-            'license_key' => 'LIC-'.strtoupper(\Illuminate\Support\Str::random(4)).'-'.strtoupper(\Illuminate\Support\Str::random(4)).'-'.strtoupper(\Illuminate\Support\Str::random(8)),
+            'license_key' => 'LIC-'.strtoupper(Str::random(4)).'-'.strtoupper(Str::random(4)).'-'.strtoupper(Str::random(8)),
             'status' => 'active',
         ]);
     }

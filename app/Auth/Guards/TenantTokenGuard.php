@@ -6,7 +6,6 @@ use App\Models\Tenant;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Contracts\Auth\Guard;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Hash;
 
 /**
  * Stateless guard that authenticates a tenant (branch) instance using its

@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\LicenseEntitlement;
+use App\Models\ModuleModel;
 use App\Models\Tenant;
 use Illuminate\Support\Facades\Log;
 
@@ -34,7 +35,7 @@ class ModuleSyncService
      */
     public function buildModuleStatuses(LicenseEntitlement $entitlement): array
     {
-        $allModules = \App\Models\ModuleModel::where('is_active', true)->pluck('slug');
+        $allModules = ModuleModel::where('is_active', true)->pluck('slug');
         $allowedModules = $entitlement->effective_modules ?? [];
 
         $statuses = [];
@@ -51,8 +52,9 @@ class ModuleSyncService
     public function pushToTenant(Tenant $tenant): void
     {
         $entitlement = $tenant->activeEntitlement;
-        if (!$entitlement) {
+        if (! $entitlement) {
             Log::warning("ModuleSyncService: No active entitlement for tenant {$tenant->client_code}");
+
             return;
         }
 
@@ -61,7 +63,7 @@ class ModuleSyncService
 
         $this->webhookDispatcher->dispatchModulesSync($tenant, $statuses);
 
-        Log::info("ModuleSyncService: Pushed ".count($statuses)." modules to tenant {$tenant->client_code}");
+        Log::info('ModuleSyncService: Pushed '.count($statuses)." modules to tenant {$tenant->client_code}");
     }
 
     /**

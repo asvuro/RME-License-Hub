@@ -33,7 +33,7 @@ class GroupRelayController extends Controller
     public function relay(Request $request): JsonResponse
     {
         $tenant = $request->attributes->get('tenant');
-        if (!$tenant) {
+        if (! $tenant) {
             return response()->json(['success' => false, 'message' => 'Not authenticated.'], 401);
         }
 
@@ -42,7 +42,7 @@ class GroupRelayController extends Controller
             'data' => ['nullable', 'array'],
         ]);
 
-        if (!$tenant->group_id) {
+        if (! $tenant->group_id) {
             return response()->json([
                 'success' => false,
                 'message' => 'Tenant is not part of a group.',

@@ -4,7 +4,6 @@ namespace App\Services;
 
 use App\Models\ForceDisableAction;
 use App\Models\LicenseEntitlement;
-use App\Models\Tenant;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
@@ -54,6 +53,7 @@ class ForceDisableManager
         // Nothing to disable (fits, or roster not yet reported).
         if (empty($selection['disable']) && empty($selection['admins_protected'])) {
             Log::info("ForceDisableManager: quota drop for {$tenant->client_code} but no targets to disable (active users fit or roster empty).");
+
             return null;
         }
 
@@ -66,7 +66,7 @@ class ForceDisableManager
             'new_limit' => $newMaxUsers,
             'users_to_disable' => count($selection['disable']),
             'users_actually_disabled' => 0,
-            'admin_last_protected' => !empty($selection['admins_protected']),
+            'admin_last_protected' => ! empty($selection['admins_protected']),
             'affected_user_ids' => $selection['disable'],
             'last_admin_protected_ids' => $selection['admins_protected'],
             'status' => 'pending',
@@ -79,7 +79,7 @@ class ForceDisableManager
         ]);
 
         // BEFORE executing: send warning WITH explicit targets.
-        $warningEventId = 'evt-' . Str::uuid()->toString();
+        $warningEventId = 'evt-'.Str::uuid()->toString();
         $this->webhookDispatcher->dispatchForceDisableWarning($tenant, [
             'event_id' => $warningEventId,
             'action_id' => $action->id,
@@ -103,7 +103,7 @@ class ForceDisableManager
             'warning_event_id' => $warningEventId,
         ]);
 
-        Log::info("ForceDisableManager: warning sent for {$tenant->client_code}. Targets=" . count($selection['disable']) . " protected_admins=" . count($selection['admins_protected']));
+        Log::info("ForceDisableManager: warning sent for {$tenant->client_code}. Targets=".count($selection['disable']).' protected_admins='.count($selection['admins_protected']));
 
         return $action;
     }
@@ -137,7 +137,7 @@ class ForceDisableManager
         $disableIds = $selection['disable'];
         $protectedIds = $selection['admins_protected'];
 
-        $executedEventId = 'evt-' . Str::uuid()->toString();
+        $executedEventId = 'evt-'.Str::uuid()->toString();
         $this->webhookDispatcher->dispatchForceDisableExecuted($tenant, [
             'event_id' => $executedEventId,
             'action_id' => $action->id,
@@ -171,7 +171,7 @@ class ForceDisableManager
             ]),
         ]);
 
-        Log::info("ForceDisableManager: executed for {$tenant->client_code}. Disabled=" . count($disableIds));
+        Log::info("ForceDisableManager: executed for {$tenant->client_code}. Disabled=".count($disableIds));
 
         return true;
     }

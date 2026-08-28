@@ -2,9 +2,8 @@
 
 namespace Tests\Unit;
 
-use App\Models\LicenseEntitlement;
+use App\Models\LicenseKey;
 use App\Models\Tenant;
-use App\Models\TenantUser;
 use App\Models\Tier;
 use App\Models\WebhookDelivery;
 use App\Services\EntitlementCalculator;
@@ -12,8 +11,8 @@ use App\Services\ForceDisableManager;
 use App\Services\RosterService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Config;
-use Tests\DatabaseTestCase;
 use Illuminate\Support\Str;
+use Tests\DatabaseTestCase;
 
 /**
  * Tests for the force-disable POLICY (ForceDisableManager).
@@ -50,7 +49,7 @@ class ForceDisablePolicyTest extends DatabaseTestCase
             'included_modules' => ['ModA'],
         ]);
         $tenant = Tenant::factory()->create();
-        $licenseKey = \App\Models\LicenseKey::factory()->create(['tenant_id' => $tenant->id]);
+        $licenseKey = LicenseKey::factory()->create(['tenant_id' => $tenant->id]);
 
         $entitlement = app(EntitlementCalculator::class)->createEntitlement(
             licenseKeyId: $licenseKey->id,

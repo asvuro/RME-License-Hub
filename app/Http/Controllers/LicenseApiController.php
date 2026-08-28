@@ -5,10 +5,11 @@ namespace App\Http\Controllers;
 use App\Http\Requests\ActivateLicenseRequest;
 use App\Http\Requests\HeartbeatRequest;
 use App\Models\HubAuditLog;
-use App\Models\LicenseEntitlement;
+use App\Models\LicenseKey;
 use App\Models\Tenant;
 use App\Models\TenantHeartbeat;
 use App\Services\EntitlementCalculator;
+use App\Services\ForceDisableManager;
 use App\Services\LicenseTokenSigner;
 use App\Services\ModuleSyncService;
 use App\Services\WebhookDispatcher;
@@ -41,9 +42,9 @@ class LicenseApiController extends Controller
         $appVersion = $request->input('app_version', '1.0.0');
 
         // Find the license key
-        $licenseKeyModel = \App\Models\LicenseKey::where('license_key', $licenseKey)->first();
+        $licenseKeyModel = LicenseKey::where('license_key', $licenseKey)->first();
 
-        if (!$licenseKeyModel) {
+        if (! $licenseKeyModel) {
             return response()->json([
                 'success' => false,
                 'message' => 'License key not found.',
@@ -78,7 +79,7 @@ class LicenseApiController extends Controller
 
         // Get or create entitlement
         $entitlement = $licenseKeyModel->entitlement;
-        if (!$entitlement) {
+        if (! $entitlement) {
             return response()->json([
                 'success' => false,
                 'message' => 'No entitlement found for this license key.',
@@ -88,6 +89,7 @@ class LicenseApiController extends Controller
         // Check if license has expired
         if ($entitlement->isExpired()) {
             $licenseKeyModel->update(['status' => 'expired']);
+
             return response()->json([
                 'success' => false,
                 'message' => 'License has expired.',
@@ -95,7 +97,7 @@ class LicenseApiController extends Controller
         }
 
         // Generate instance ID
-        $instanceId = $licenseKeyModel->instance_id ?: 'INST-' . strtoupper(Str::random(16));
+        $instanceId = $licenseKeyModel->instance_id ?: 'INST-'.strtoupper(Str::random(16));
 
         // Recalculate entitlement to get latest effective values
         $this->calculator->recalculate($entitlement);
@@ -140,7 +142,7 @@ class LicenseApiController extends Controller
         ]);
 
         // Generate a service-to-service API token for this tenant (for heartbeat auth)
-        $s2sToken = config('license.s2s_token_prefix') . Str::random(48);
+        $s2sToken = config('license.s2s_token_prefix').Str::random(48);
         $tenant->update([
             'api_token_hash' => hash('sha256', $s2sToken),
             'last_heartbeat_at' => $issuedAt,
@@ -185,7 +187,7 @@ class LicenseApiController extends Controller
     public function heartbeat(HeartbeatRequest $request): JsonResponse
     {
         $tenant = $request->user(); // Tenant resolved by the `tenant` guard
-        if (!$tenant) {
+        if (! $tenant) {
             return response()->json([
                 'success' => false,
                 'message' => 'Tenant not authenticated.',
@@ -209,7 +211,7 @@ class LicenseApiController extends Controller
 
         // Check entitlement status
         $entitlement = $tenant->activeEntitlement;
-        if (!$entitlement) {
+        if (! $entitlement) {
             return response()->json([
                 'success' => false,
                 'status' => 'unlicensed',
@@ -224,13 +226,14 @@ class LicenseApiController extends Controller
 
         // Check if force-disable is needed
         if ($entitlement->effective_max_users < $previousMaxUsers) {
-            $forceDisableManager = app(\App\Services\ForceDisableManager::class);
+            $forceDisableManager = app(ForceDisableManager::class);
             $forceDisableManager->checkAndTrigger($entitlement, $previousMaxUsers);
         }
 
         // Check if license expired
         if ($entitlement->isExpired()) {
             $entitlement->update(['status' => 'expired']);
+
             return response()->json([
                 'success' => false,
                 'status' => 'expired',
@@ -244,7 +247,7 @@ class LicenseApiController extends Controller
         $validUntil = $entitlement->valid_until;
 
         $payload = $this->tokenSigner->buildPayload(
-            instanceId: $licenseKeyModel->instance_id ?? 'INST-' . strtoupper(Str::random(16)),
+            instanceId: $licenseKeyModel->instance_id ?? 'INST-'.strtoupper(Str::random(16)),
             clientName: $tenant->client_name,
             clientCode: $tenant->client_code,
             licenseKey: $licenseKeyModel->license_key,
@@ -301,12 +304,12 @@ class LicenseApiController extends Controller
     public function validate(Request $request): JsonResponse
     {
         $tenant = $request->user(); // Tenant resolved by the `tenant` guard
-        if (!$tenant) {
+        if (! $tenant) {
             return response()->json(['success' => false, 'message' => 'Not authenticated.'], 401);
         }
 
         $entitlement = $tenant->activeEntitlement;
-        if (!$entitlement) {
+        if (! $entitlement) {
             return response()->json([
                 'success' => false,
                 'status' => 'unlicensed',

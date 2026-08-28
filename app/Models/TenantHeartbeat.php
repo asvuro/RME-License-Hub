@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class TenantHeartbeat extends Model
 {
     use HasFactory;
+
     protected $fillable = [
         'tenant_id', 'instance_id', 'license_key', 'hardware_id',
         'app_version', 'php_version', 'hostname', 'ip_address', 'metadata',

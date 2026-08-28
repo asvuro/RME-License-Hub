@@ -6,8 +6,8 @@ use App\Models\Tenant;
 use App\Models\TenantUser;
 use App\Services\ForceDisableTargetSelector;
 use Illuminate\Foundation\Testing\WithFaker;
-use Tests\DatabaseTestCase;
 use Illuminate\Support\Str;
+use Tests\DatabaseTestCase;
 
 class ForceDisableTargetSelectorTest extends DatabaseTestCase
 {
@@ -36,7 +36,7 @@ class ForceDisableTargetSelectorTest extends DatabaseTestCase
         $newest = $this->user($tenant, 5, false);
 
         // Quota drops to 3 -> must disable the 2 newest (registered 5 and 40 days ago).
-        $sel = (new ForceDisableTargetSelector())->select(3, 5, $tenant->tenantUsers()->get());
+        $sel = (new ForceDisableTargetSelector)->select(3, 5, $tenant->tenantUsers()->get());
 
         $this->assertSame(['disable' => [$newest->external_user_id, $mid->external_user_id], 'admins_protected' => []], [
             'disable' => $sel['disable'],
@@ -53,7 +53,7 @@ class ForceDisableTargetSelectorTest extends DatabaseTestCase
         $activeOld = $this->user($tenant, 90, false);
 
         // Quota 1 -> only the single active newest is disabled.
-        $sel = (new ForceDisableTargetSelector())->select(1, 3, $tenant->tenantUsers()->get());
+        $sel = (new ForceDisableTargetSelector)->select(1, 3, $tenant->tenantUsers()->get());
         $this->assertSame([$activeNew->external_user_id], $sel['disable']);
     }
 
@@ -67,7 +67,7 @@ class ForceDisableTargetSelectorTest extends DatabaseTestCase
         // Quota drops to 2. The newest active user is the admin; disabling it
         // would leave zero admins. It MUST be protected, and the over-quota
         // cannot be fully resolved without breaking the rule.
-        $sel = (new ForceDisableTargetSelector())->select(2, 3, $tenant->tenantUsers()->get());
+        $sel = (new ForceDisableTargetSelector)->select(2, 3, $tenant->tenantUsers()->get());
 
         $this->assertContains($admin->external_user_id, $sel['admins_protected']);
         $this->assertNotContains($admin->external_user_id, $sel['disable']);
@@ -85,7 +85,7 @@ class ForceDisableTargetSelectorTest extends DatabaseTestCase
         // survives regardless); the newest NON-admin and the newest ADMIN are
         // both disabled (the newest admin leaves 1 admin standing, so it is NOT
         // protected). The 3 newest are disabled: adminNew, user2, user1.
-        $sel = (new ForceDisableTargetSelector())->select(1, 4, $tenant->tenantUsers()->get());
+        $sel = (new ForceDisableTargetSelector)->select(1, 4, $tenant->tenantUsers()->get());
 
         $this->assertNotContains($adminOld->external_user_id, $sel['disable']);
         $this->assertContains($adminNew->external_user_id, $sel['disable']);
@@ -97,7 +97,7 @@ class ForceDisableTargetSelectorTest extends DatabaseTestCase
     {
         $tenant = Tenant::factory()->create();
         $this->user($tenant, 10, false);
-        $sel = (new ForceDisableTargetSelector())->select(0, 5, $tenant->tenantUsers()->get());
+        $sel = (new ForceDisableTargetSelector)->select(0, 5, $tenant->tenantUsers()->get());
         $this->assertSame([], $sel['disable']);
     }
 
@@ -106,7 +106,7 @@ class ForceDisableTargetSelectorTest extends DatabaseTestCase
         $tenant = Tenant::factory()->create();
         $this->user($tenant, 10, false);
         $this->user($tenant, 20, false);
-        $sel = (new ForceDisableTargetSelector())->select(5, 2, $tenant->tenantUsers()->get());
+        $sel = (new ForceDisableTargetSelector)->select(5, 2, $tenant->tenantUsers()->get());
         $this->assertSame([], $sel['disable']);
     }
 }

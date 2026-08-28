@@ -15,6 +15,7 @@ class DeliverWebhook implements ShouldQueue
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     public int $tries = 5;
+
     public int $backoff = 30;
 
     public function __construct(
@@ -27,7 +28,7 @@ class DeliverWebhook implements ShouldQueue
             return;
         }
 
-        if (!$this->delivery->canRetry()) {
+        if (! $this->delivery->canRetry()) {
             return;
         }
 

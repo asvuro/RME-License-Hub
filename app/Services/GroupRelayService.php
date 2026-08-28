@@ -29,11 +29,11 @@ class GroupRelayService
     /**
      * Relay a typed event from one tenant to all sibling tenants in its group.
      *
-     * @param  Tenant  $sender   The authenticated sender (resolved by the tenant guard).
+     * @param  Tenant  $sender  The authenticated sender (resolved by the tenant guard).
      * @param  GroupRealtimeEventType  $type  One of the four fixed contract types.
      * @param  string|null  $resourceId  Optional resource reference.
      * @param  array  $extra  Optional extra payload fields (never PHI).
-     * @return int  Number of sibling branches the notification was broadcast to.
+     * @return int Number of sibling branches the notification was broadcast to.
      */
     public function relayToGroup(
         Tenant $sender,
@@ -41,8 +41,9 @@ class GroupRelayService
         ?string $resourceId = null,
         array $extra = []
     ): int {
-        if (!$sender->group_id) {
+        if (! $sender->group_id) {
             Log::info("GroupRelayService: sender {$sender->client_code} not in a group; skip.");
+
             return 0;
         }
 
@@ -62,6 +63,7 @@ class GroupRelayService
         }
 
         Log::info("GroupRelayService: relayed {$type->value} from {$sender->client_code} to {$delivered} siblings.");
+
         return $delivered;
     }
 
@@ -76,8 +78,9 @@ class GroupRelayService
         array $extra = []
     ): void {
         $instanceId = $tenant->licenseKeys()->latest()->value('instance_id');
-        if (!$instanceId) {
+        if (! $instanceId) {
             Log::warning("GroupRelayService: tenant {$tenant->client_code} has no instance_id; cannot broadcast.");
+
             return;
         }
 
@@ -98,6 +101,7 @@ class GroupRelayService
     {
         $branches = $group->activeTenants->map(function (Tenant $tenant) {
             $licenseKey = $tenant->licenseKeys()->latest()->first();
+
             return [
                 'id' => $tenant->id,
                 'instance_id' => $licenseKey?->instance_id,

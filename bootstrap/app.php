@@ -1,6 +1,7 @@
 <?php
 
 use App\Auth\Guards\TenantTokenGuard;
+use Illuminate\Auth\Middleware\Authenticate;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -31,7 +32,7 @@ return Application::configure(basePath: dirname(__DIR__))
         // Ensure the framework knows which guard owns the "hub" route space
         // so the Authenticate middleware can pick the right redirect.
         $middleware->alias([
-            'auth.hub' => \Illuminate\Auth\Middleware\Authenticate::using('hub'),
+            'auth.hub' => Authenticate::using('hub'),
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

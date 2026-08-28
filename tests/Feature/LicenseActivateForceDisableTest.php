@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Models\ForceDisableAction;
 use App\Models\LicenseEntitlement;
 use App\Models\LicenseKey;
 use App\Models\Tenant;
@@ -13,8 +12,8 @@ use App\Services\ForceDisableManager;
 use App\Services\RosterService;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Queue;
-use Tests\DatabaseTestCase;
 use Illuminate\Support\Str;
+use Tests\DatabaseTestCase;
 
 class LicenseActivateForceDisableTest extends DatabaseTestCase
 {
@@ -32,7 +31,7 @@ class LicenseActivateForceDisableTest extends DatabaseTestCase
         $public = openssl_pkey_get_details($keyPair)['key'];
 
         $dir = storage_path('keys');
-        if (!is_dir($dir)) {
+        if (! is_dir($dir)) {
             mkdir($dir, 0700, true);
         }
         $privPath = $dir.'/test_license_private.pem';

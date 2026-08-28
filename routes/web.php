@@ -1,10 +1,10 @@
 <?php
 
 use App\Http\Controllers\Auth\HubLoginController;
+use App\Livewire\Hub\Addons\Index as AddonsIndex;
 use App\Livewire\Hub\Admins\Index as AdminsIndex;
 use App\Livewire\Hub\Audit\Index as AuditIndex;
 use App\Livewire\Hub\Dashboard;
-use App\Livewire\Hub\Addons\Index as AddonsIndex;
 use App\Livewire\Hub\Groups\Index as GroupsIndex;
 use App\Livewire\Hub\Licenses\Index as LicensesIndex;
 use App\Livewire\Hub\Tenants\Index as TenantsIndex;

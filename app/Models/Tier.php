@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class Tier extends Model
 {
     use HasFactory;
+
     protected $fillable = [
         'slug', 'name', 'description',
         'base_max_users', 'default_duration_days',

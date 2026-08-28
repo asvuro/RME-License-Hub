@@ -6,8 +6,9 @@ use App\Events\GrupNotification;
 use App\Models\Group;
 use App\Models\LicenseKey;
 use App\Models\Tenant;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Config;
+use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Str;
 use Tests\DatabaseTestCase;
 
 class GrupRealtimeAuthTest extends DatabaseTestCase
@@ -24,9 +25,9 @@ class GrupRealtimeAuthTest extends DatabaseTestCase
     {
         $tenant = Tenant::factory()->create(['group_id' => $groupId]);
         LicenseKey::create([
-            'id' => \Illuminate\Support\Str::uuid()->toString(),
+            'id' => Str::uuid()->toString(),
             'tenant_id' => $tenant->id,
-            'license_key' => 'LIC-'.strtoupper(\Illuminate\Support\Str::random(4)).'-'.strtoupper(\Illuminate\Support\Str::random(4)).'-'.strtoupper(\Illuminate\Support\Str::random(8)),
+            'license_key' => 'LIC-'.strtoupper(Str::random(4)).'-'.strtoupper(Str::random(4)).'-'.strtoupper(Str::random(8)),
             'status' => 'active',
             'instance_id' => $instanceId,
         ]);
@@ -38,7 +39,7 @@ class GrupRealtimeAuthTest extends DatabaseTestCase
     {
         $instance = 'INST-AAA';
         $tenant = $this->tenantWithInstance($instance);
-        $token = \Illuminate\Support\Str::random(48);
+        $token = Str::random(48);
         $tenant->update(['api_token_hash' => hash('sha256', $token)]);
 
         $response = $this->postJson('/api/v1/group/realtime/auth', [
@@ -54,7 +55,7 @@ class GrupRealtimeAuthTest extends DatabaseTestCase
     public function test_auth_denied_when_instance_header_mismatches(): void
     {
         $tenant = $this->tenantWithInstance('INST-AAA');
-        $token = \Illuminate\Support\Str::random(48);
+        $token = Str::random(48);
         $tenant->update(['api_token_hash' => hash('sha256', $token)]);
 
         $response = $this->postJson('/api/v1/group/realtime/auth', [
@@ -76,7 +77,7 @@ class GrupRealtimeAuthTest extends DatabaseTestCase
     public function test_auth_denied_for_other_tenants_channel(): void
     {
         $tenant = $this->tenantWithInstance('INST-AAA');
-        $token = \Illuminate\Support\Str::random(48);
+        $token = Str::random(48);
         $tenant->update(['api_token_hash' => hash('sha256', $token)]);
 
         // Attempting to auth a DIFFERENT instance's channel must fail (fail-closed).
@@ -88,10 +89,37 @@ class GrupRealtimeAuthTest extends DatabaseTestCase
         $response->assertStatus(403);
     }
 
+    public function test_auth_signature_is_a_valid_hmac_of_socket_and_channel(): void
+    {
+        // Verifies the returned Pusher/Reverb "auth" string is cryptographically
+        // correct — not just present — by recomputing it exactly as a real
+        // client-side Pusher/Reverb SDK verifies the channel authorizer response.
+        $instance = 'INST-SIG';
+        $tenant = $this->tenantWithInstance($instance);
+        $token = Str::random(48);
+        $tenant->update(['api_token_hash' => hash('sha256', $token)]);
+
+        $socketId = '999.111';
+        $channel = GrupNotification::CHANNEL_PREFIX.$instance;
+
+        $response = $this->postJson('/api/v1/group/realtime/auth', [
+            'socket_id' => $socketId,
+            'channel_name' => $channel,
+        ], ['Authorization' => 'Bearer '.$token, 'X-RME-Instance-ID' => $instance]);
+
+        $response->assertStatus(200);
+
+        [$key, $signature] = explode(':', $response->json('auth'), 2);
+        $this->assertSame('test_key', $key);
+
+        $expectedSignature = hash_hmac('sha256', $socketId.':'.$channel, 'test_secret');
+        $this->assertTrue(hash_equals($expectedSignature, $signature));
+    }
+
     public function test_relay_requires_membership_in_group(): void
     {
         $tenant = $this->tenantWithInstance('INST-AAA'); // no group_id
-        $token = \Illuminate\Support\Str::random(48);
+        $token = Str::random(48);
         $tenant->update(['api_token_hash' => hash('sha256', $token)]);
 
         $this->postJson('/api/v1/group/relay', [
@@ -102,9 +130,9 @@ class GrupRealtimeAuthTest extends DatabaseTestCase
 
     public function test_relay_rejects_unknown_event_type(): void
     {
-        $group = Group::create(['id' => \Illuminate\Support\Str::uuid()->toString(), 'name' => 'G']);
+        $group = Group::create(['id' => Str::uuid()->toString(), 'name' => 'G']);
         $tenant = $this->tenantWithInstance('INST-AAA', $group->id);
-        $token = \Illuminate\Support\Str::random(48);
+        $token = Str::random(48);
         $tenant->update(['api_token_hash' => hash('sha256', $token)]);
 
         // Only the 4 fixed types are allowed (fail-closed to the contract).
@@ -115,12 +143,12 @@ class GrupRealtimeAuthTest extends DatabaseTestCase
 
     public function test_relay_broadcasts_to_siblings_on_correct_channel(): void
     {
-        \Illuminate\Support\Facades\Event::fake([GrupNotification::class]);
+        Event::fake([GrupNotification::class]);
 
-        $group = Group::create(['id' => \Illuminate\Support\Str::uuid()->toString(), 'name' => 'G']);
+        $group = Group::create(['id' => Str::uuid()->toString(), 'name' => 'G']);
         $sender = $this->tenantWithInstance('INST-SEND', $group->id);
         $sibling = $this->tenantWithInstance('INST-SIB', $group->id);
-        $token = \Illuminate\Support\Str::random(48);
+        $token = Str::random(48);
         $sender->update(['api_token_hash' => hash('sha256', $token)]);
 
         $response = $this->postJson('/api/v1/group/relay', [

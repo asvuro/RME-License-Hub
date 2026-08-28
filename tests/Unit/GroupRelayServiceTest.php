@@ -8,8 +8,8 @@ use App\Models\Group;
 use App\Models\LicenseKey;
 use App\Models\Tenant;
 use App\Services\GroupRelayService;
-use Tests\DatabaseTestCase;
 use Illuminate\Support\Str;
+use Tests\DatabaseTestCase;
 
 class GroupRelayServiceTest extends DatabaseTestCase
 {
@@ -23,6 +23,7 @@ class GroupRelayServiceTest extends DatabaseTestCase
             'status' => 'active',
             'instance_id' => $instanceId,
         ]);
+
         return $tenant;
     }
 

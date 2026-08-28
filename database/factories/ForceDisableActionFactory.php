@@ -3,6 +3,7 @@
 namespace Database\Factories;
 
 use App\Models\ForceDisableAction;
+use App\Models\Tenant;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Str;
 
@@ -17,7 +18,7 @@ class ForceDisableActionFactory extends Factory
     {
         return [
             'id' => (string) Str::uuid(),
-            'tenant_id' => \App\Models\Tenant::factory(),
+            'tenant_id' => Tenant::factory(),
             'entitlement_id' => null,
             'trigger_type' => 'user_quota_exceeded',
             'previous_limit' => 20,

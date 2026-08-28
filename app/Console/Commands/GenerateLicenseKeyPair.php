@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\File;
 class GenerateLicenseKeyPair extends Command
 {
     protected $signature = 'license:generate-keys {--force : Overwrite existing keys}';
+
     protected $description = 'Generate RSA key pair for signing license tokens';
 
     public function handle(): int
@@ -16,12 +17,13 @@ class GenerateLicenseKeyPair extends Command
         $privatePath = config('license.private_key_path');
         $publicPath = config('license.public_key_path');
 
-        if (!File::exists($dir)) {
+        if (! File::exists($dir)) {
             File::makeDirectory($dir, 0700, true);
         }
 
-        if (File::exists($privatePath) && !$this->option('force')) {
+        if (File::exists($privatePath) && ! $this->option('force')) {
             $this->warn('Private key already exists. Use --force to overwrite.');
+
             return 1;
         }
 
@@ -34,8 +36,9 @@ class GenerateLicenseKeyPair extends Command
         ];
 
         $keyPair = openssl_pkey_new($config);
-        if (!$keyPair) {
-            $this->error('Failed to generate key pair: ' . openssl_error_string());
+        if (! $keyPair) {
+            $this->error('Failed to generate key pair: '.openssl_error_string());
+
             return 1;
         }
 
@@ -50,7 +53,7 @@ class GenerateLicenseKeyPair extends Command
         $this->info("Private key saved to: {$privatePath}");
         $this->info("Public key saved to: {$publicPath}");
         $this->warn('Distribute the public key to client instances (RME-Backend) via:');
-        $this->warn("  SAAS_LICENSE_PUBLIC_KEY_PATH or inline via SAAS_LICENSE_PUBLIC_KEY env var.");
+        $this->warn('  SAAS_LICENSE_PUBLIC_KEY_PATH or inline via SAAS_LICENSE_PUBLIC_KEY env var.');
 
         return 0;
     }

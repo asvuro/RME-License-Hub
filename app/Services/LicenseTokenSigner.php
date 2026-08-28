@@ -35,6 +35,7 @@ class LicenseTokenSigner
             $key = file_get_contents($path);
             if ($key) {
                 $this->privateKey = $key;
+
                 return $key;
             }
         }
@@ -42,6 +43,7 @@ class LicenseTokenSigner
         $inlineKey = config('license.private_key');
         if ($inlineKey) {
             $this->privateKey = $inlineKey;
+
             return $inlineKey;
         }
 
@@ -51,14 +53,15 @@ class LicenseTokenSigner
     /**
      * Sign a payload array and return the token string.
      *
-     * @param array $payload The license payload
+     * @param  array  $payload  The license payload
      * @return string The token: base64(payload_json).base64(signature)
+     *
      * @throws \RuntimeException If private key is not available or signing fails
      */
     public function sign(array $payload): string
     {
         $privateKey = $this->getPrivateKey();
-        if (!$privateKey) {
+        if (! $privateKey) {
             Log::error('LicenseTokenSigner: No RSA private key configured.');
             throw new \RuntimeException('License signing key is not configured.');
         }
@@ -68,13 +71,13 @@ class LicenseTokenSigner
         $signature = '';
         $result = openssl_sign($payloadJson, $signature, $privateKey, OPENSSL_ALGO_SHA256);
 
-        if (!$result) {
+        if (! $result) {
             $error = openssl_error_string();
-            Log::error('LicenseTokenSigner: openssl_sign failed: ' . $error);
-            throw new \RuntimeException('Failed to sign license token: ' . $error);
+            Log::error('LicenseTokenSigner: openssl_sign failed: '.$error);
+            throw new \RuntimeException('Failed to sign license token: '.$error);
         }
 
-        return base64_encode($payloadJson) . '.' . base64_encode($signature);
+        return base64_encode($payloadJson).'.'.base64_encode($signature);
     }
 
     /**
@@ -135,6 +138,7 @@ class LicenseTokenSigner
             $hardwareId, $tier, $issuedAt, $validUntil,
             $maxUsers, $allowedModules, $extra
         );
+
         return $this->sign($payload);
     }
 }

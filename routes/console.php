@@ -1,5 +1,6 @@
 <?php
 
+use App\Jobs\RetryFailedWebhooks;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
@@ -15,6 +16,6 @@ Schedule::command('license:process-scheduled')
     ->runInBackground();
 
 // Retry failed webhook deliveries
-Schedule::job(new \App\Jobs\RetryFailedWebhooks())
+Schedule::job(new RetryFailedWebhooks)
     ->everyFifteenMinutes()
     ->withoutOverlapping();

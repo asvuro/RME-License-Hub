@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Jobs\DeliverWebhook;
 use App\Models\Tenant;
 use App\Models\WebhookDelivery;
 use Illuminate\Support\Facades\Http;
@@ -35,7 +36,7 @@ class WebhookDispatcher
         // If the caller already assigned an event_id (e.g. force-disable warning),
         // reuse it so the stored WebhookDelivery.event_id matches the client's
         // envelope exactly — important for client-side anti-replay dedup.
-        $eventId = $payload['event_id'] ?? ('evt-' . Str::uuid()->toString());
+        $eventId = $payload['event_id'] ?? ('evt-'.Str::uuid()->toString());
         $timestamp = time();
 
         $envelope = array_merge([
@@ -59,7 +60,7 @@ class WebhookDispatcher
         if ($sync) {
             $this->deliver($delivery);
         } else {
-            \App\Jobs\DeliverWebhook::dispatch($delivery);
+            DeliverWebhook::dispatch($delivery);
         }
 
         return $delivery;
@@ -74,28 +75,30 @@ class WebhookDispatcher
 
         // The webhook URL is the tenant's instance URL + /api/v1/system/license/webhook
         $webhookUrl = $this->getWebhookUrl($tenant);
-        if (!$webhookUrl) {
+        if (! $webhookUrl) {
             Log::warning("WebhookDispatcher: No webhook URL configured for tenant {$tenant->client_code}");
             $delivery->update([
                 'attempts' => $delivery->attempts + 1,
                 'next_attempt_at' => now()->addMinutes(5),
             ]);
+
             return false;
         }
 
         // Get the plaintext webhook secret (from config, not DB hash)
         $secret = $this->getWebhookSecret($tenant);
-        if (!$secret) {
+        if (! $secret) {
             Log::warning("WebhookDispatcher: No webhook secret for tenant {$tenant->client_code}");
             $delivery->update([
                 'attempts' => $delivery->attempts + 1,
                 'next_attempt_at' => now()->addMinutes(5),
             ]);
+
             return false;
         }
 
         $body = json_encode($delivery->payload);
-        $signature = 'sha256=' . hash_hmac('sha256', $body, $secret);
+        $signature = 'sha256='.hash_hmac('sha256', $body, $secret);
 
         $delivery->update([
             'url' => $webhookUrl,
@@ -121,12 +124,14 @@ class WebhookDispatcher
                     'delivered_at' => now(),
                     'next_attempt_at' => null,
                 ]);
+
                 return true;
             }
 
             // Schedule retry with exponential backoff
             $backoff = min(300, 30 * (2 ** $delivery->attempts));
             $delivery->update(['next_attempt_at' => now()->addSeconds($backoff)]);
+
             return false;
         } catch (\Throwable $e) {
             Log::error("WebhookDispatcher: Delivery failed for tenant {$tenant->client_code}: {$e->getMessage()}");
@@ -134,6 +139,7 @@ class WebhookDispatcher
                 'last_response_body' => substr($e->getMessage(), 0, 1000),
                 'next_attempt_at' => $delivery->canRetry() ? now()->addSeconds(min(300, 30 * (2 ** $delivery->attempts))) : null,
             ]);
+
             return false;
         }
     }
@@ -149,16 +155,16 @@ class WebhookDispatcher
     private function getWebhookUrl(Tenant $tenant): ?string
     {
         $base = $tenant->instance_url;
-        if (!$base) {
+        if (! $base) {
             // Fallback to per-tenant config override (also ops-set).
             $base = config("license.tenants.{$tenant->client_code}.instance_url");
         }
 
-        if (!$base) {
+        if (! $base) {
             return null;
         }
 
-        return rtrim($base, '/') . '/api/v1/system/license/webhook';
+        return rtrim($base, '/').'/api/v1/system/license/webhook';
     }
 
     /**
@@ -170,7 +176,7 @@ class WebhookDispatcher
      */
     private function getWebhookSecret(Tenant $tenant): ?string
     {
-        if (!empty($tenant->webhook_secret)) {
+        if (! empty($tenant->webhook_secret)) {
             return $tenant->webhook_secret;
         }
 

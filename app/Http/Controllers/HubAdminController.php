@@ -10,12 +10,13 @@ use App\Models\LicenseKey;
 use App\Models\Tenant;
 use App\Models\Tier;
 use App\Services\EntitlementCalculator;
+use App\Services\ForceDisableManager;
 use App\Services\LicenseTokenSigner;
 use App\Services\ModuleSyncService;
 use App\Services\WebhookDispatcher;
-use App\Services\ForceDisableManager;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
 
 class HubAdminController extends Controller
@@ -48,6 +49,7 @@ class HubAdminController extends Controller
     public function listGroups(): JsonResponse
     {
         $groups = Group::withCount('tenants')->get();
+
         return response()->json(['success' => true, 'data' => $groups]);
     }
 
@@ -119,12 +121,14 @@ class HubAdminController extends Controller
         $tenants = Tenant::with(['group', 'activeEntitlement.tier'])
             ->withCount('licenseKeys')
             ->get();
+
         return response()->json(['success' => true, 'data' => $tenants]);
     }
 
     public function showTenant(Tenant $tenant): JsonResponse
     {
-        $tenant->load(['group', 'licenseKeys.entitlement.tier', 'licenseKeys.entitlement.addons', 'heartbeats' => fn($q) => $q->latest()->limit(5)]);
+        $tenant->load(['group', 'licenseKeys.entitlement.tier', 'licenseKeys.entitlement.addons', 'heartbeats' => fn ($q) => $q->latest()->limit(5)]);
+
         return response()->json(['success' => true, 'data' => $tenant]);
     }
 
@@ -163,10 +167,10 @@ class HubAdminController extends Controller
         $tier = Tier::findOrFail($data['tier_id']);
 
         // Generate unique license key
-        $licenseKeyStr = 'LIC-' . strtoupper(Str::random(4)) . '-' . strtoupper(Str::random(4)) . '-' . strtoupper(Str::random(8));
+        $licenseKeyStr = 'LIC-'.strtoupper(Str::random(4)).'-'.strtoupper(Str::random(4)).'-'.strtoupper(Str::random(8));
 
         $validFrom = now();
-        $validUntil = isset($data['valid_until']) ? \Illuminate\Support\Carbon::parse($data['valid_until']) : $validFrom->copy()->addDays($tier->default_duration_days);
+        $validUntil = isset($data['valid_until']) ? Carbon::parse($data['valid_until']) : $validFrom->copy()->addDays($tier->default_duration_days);
 
         $licenseKey = LicenseKey::create([
             'id' => Str::uuid()->toString(),
@@ -186,7 +190,7 @@ class HubAdminController extends Controller
         );
 
         // Add addons if provided
-        if (!empty($data['addons'])) {
+        if (! empty($data['addons'])) {
             foreach ($data['addons'] as $addonData) {
                 $this->calculator->addAddon(
                     entitlement: $entitlement,
@@ -229,6 +233,7 @@ class HubAdminController extends Controller
         }
 
         $keys = $query->latest()->get();
+
         return response()->json(['success' => true, 'data' => $keys]);
     }
 

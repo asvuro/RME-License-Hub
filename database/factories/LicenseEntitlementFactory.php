@@ -3,6 +3,9 @@
 namespace Database\Factories;
 
 use App\Models\LicenseEntitlement;
+use App\Models\LicenseKey;
+use App\Models\Tenant;
+use App\Models\Tier;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Str;
 
@@ -17,9 +20,9 @@ class LicenseEntitlementFactory extends Factory
     {
         return [
             'id' => (string) Str::uuid(),
-            'license_key_id' => \App\Models\LicenseKey::factory(),
-            'tenant_id' => \App\Models\Tenant::factory(),
-            'tier_id' => \App\Models\Tier::factory(),
+            'license_key_id' => LicenseKey::factory(),
+            'tenant_id' => Tenant::factory(),
+            'tier_id' => Tier::factory(),
             'status' => 'active',
             'base_max_users' => 0,
             'base_max_branches' => 1,

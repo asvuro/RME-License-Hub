@@ -9,8 +9,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class LicenseAddon extends Model
 {
-    use HasUuids;
     use HasFactory;
+    use HasUuids;
+
     protected $keyType = 'string';
 
     public $incrementing = false;

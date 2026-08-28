@@ -10,8 +10,9 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class LicenseKey extends Model
 {
-    use HasUuids;
     use HasFactory;
+    use HasUuids;
+
     protected $keyType = 'string';
 
     public $incrementing = false;

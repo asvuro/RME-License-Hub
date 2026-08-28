@@ -10,8 +10,9 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class LicenseEntitlement extends Model
 {
-    use HasUuids;
     use HasFactory;
+    use HasUuids;
+
     protected $keyType = 'string';
 
     public $incrementing = false;

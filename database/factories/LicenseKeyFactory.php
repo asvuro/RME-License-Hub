@@ -3,6 +3,7 @@
 namespace Database\Factories;
 
 use App\Models\LicenseKey;
+use App\Models\Tenant;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Str;
 
@@ -17,7 +18,7 @@ class LicenseKeyFactory extends Factory
     {
         return [
             'id' => (string) Str::uuid(),
-            'tenant_id' => \App\Models\Tenant::factory(),
+            'tenant_id' => Tenant::factory(),
             'license_key' => 'LIC-'.strtoupper(Str::random(20)),
             'status' => 'unused',
             'issued_at' => null,

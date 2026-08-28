@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Models\Tenant;
 use App\Models\WebhookDelivery;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Str;
@@ -17,7 +18,7 @@ class WebhookDeliveryFactory extends Factory
     {
         return [
             'id' => (string) Str::uuid(),
-            'tenant_id' => \App\Models\Tenant::factory(),
+            'tenant_id' => Tenant::factory(),
             'event_type' => 'license.updated',
             'event_id' => 'evt-'.Str::uuid()->toString(),
             'payload' => [],

@@ -44,7 +44,7 @@ class LicenseActivationTest extends TestCase
         $public = openssl_pkey_get_details($keyPair)['key'];
 
         $dir = storage_path('keys');
-        if (!is_dir($dir)) {
+        if (! is_dir($dir)) {
             mkdir($dir, 0700, true);
         }
         $privPath = $dir.'/test_license_private.pem';
@@ -80,6 +80,7 @@ class LicenseActivationTest extends TestCase
     private function decodeToken(string $token): array
     {
         [$payload] = explode('.', $token);
+
         return json_decode(base64_decode($payload), true);
     }
 

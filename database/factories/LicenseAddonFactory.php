@@ -3,6 +3,7 @@
 namespace Database\Factories;
 
 use App\Models\LicenseAddon;
+use App\Models\LicenseEntitlement;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Str;
 
@@ -17,7 +18,7 @@ class LicenseAddonFactory extends Factory
     {
         return [
             'id' => (string) Str::uuid(),
-            'entitlement_id' => \App\Models\LicenseEntitlement::factory(),
+            'entitlement_id' => LicenseEntitlement::factory(),
             'addon_type' => 'module',
             'target_module_slug' => null,
             'quantity' => 1,
@@ -38,7 +39,7 @@ class LicenseAddonFactory extends Factory
         return $this->state(fn () => ['addon_type' => 'branch_quota', 'quantity' => $quantity]);
     }
 
-    public function module(string $slug = null): static
+    public function module(?string $slug = null): static
     {
         return $this->state(fn () => [
             'addon_type' => 'module',

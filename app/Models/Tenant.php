@@ -3,19 +3,19 @@
 namespace App\Models;
 
 use Illuminate\Auth\Authenticatable;
+use Illuminate\Contracts\Auth\Authenticatable as AuthenticatableContract;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
-use Illuminate\Contracts\Auth\Authenticatable as AuthenticatableContract;
 
 class Tenant extends Model implements AuthenticatableContract
 {
     use Authenticatable;
-    use HasUuids;
     use HasFactory;
+    use HasUuids;
 
     protected $keyType = 'string';
 

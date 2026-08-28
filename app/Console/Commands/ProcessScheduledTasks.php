@@ -2,6 +2,8 @@
 
 namespace App\Console\Commands;
 
+use App\Models\LicenseEntitlement;
+use App\Services\EntitlementCalculator;
 use App\Services\ForceDisableManager;
 use App\Services\ModuleSyncService;
 use Illuminate\Console\Command;
@@ -9,6 +11,7 @@ use Illuminate\Console\Command;
 class ProcessScheduledTasks extends Command
 {
     protected $signature = 'license:process-scheduled';
+
     protected $description = 'Process pending force-disable actions, expire add-ons, and push module syncs';
 
     public function handle(
@@ -22,9 +25,9 @@ class ProcessScheduledTasks extends Command
         $this->info("Force-disable actions executed: {$executed}");
 
         // 2. Expire due add-ons for all active entitlements
-        $entitlements = \App\Models\LicenseEntitlement::where('status', 'active')->get();
+        $entitlements = LicenseEntitlement::where('status', 'active')->get();
         $expiredCount = 0;
-        $calculator = app(\App\Services\EntitlementCalculator::class);
+        $calculator = app(EntitlementCalculator::class);
 
         foreach ($entitlements as $entitlement) {
             $expired = $calculator->expireDueAddons($entitlement);

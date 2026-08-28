@@ -6,6 +6,7 @@ use App\Models\Tenant;
 use App\Services\WebhookDispatcher;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Str;
 use Tests\DatabaseTestCase;
 
 class WebhookDispatchTest extends DatabaseTestCase
@@ -16,7 +17,7 @@ class WebhookDispatchTest extends DatabaseTestCase
         Http::fake([
             'rs-sehat.example.test/*' => Http::response(['ok' => true], 200),
         ]);
-        $plainSecret = 'shared-secret-'.\Illuminate\Support\Str::random(32);
+        $plainSecret = 'shared-secret-'.Str::random(32);
         $tenant = Tenant::factory()->create([
             'instance_url' => 'https://rs-sehat.example.test',
             'webhook_secret' => $plainSecret, // encrypted cast on save

@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\TenantUser;
+use Illuminate\Support\Collection;
 
 /**
  * Hub-authoritative target selection for force-disable.
@@ -21,9 +22,9 @@ use App\Models\TenantUser;
 class ForceDisableTargetSelector
 {
     /**
-     * @param  int   $newLimit   New effective max users after the add-on expired.
-     * @param  int   $oldLimit   Effective max users before the change (for reporting).
-     * @param  \Illuminate\Support\Collection<int,TenantUser>  $users  Reported roster.
+     * @param  int  $newLimit  New effective max users after the add-on expired.
+     * @param  int  $oldLimit  Effective max users before the change (for reporting).
+     * @param  Collection<int,TenantUser>  $users  Reported roster.
      * @return array{disable: string[], admins_protected: string[], over_limit_by: int, fit: bool}
      */
     public function select(int $newLimit, int $oldLimit, $users): array
@@ -51,6 +52,7 @@ class ForceDisableTargetSelector
             if ($ra !== $rb) {
                 return $rb <=> $ra;
             }
+
             return strcmp((string) $b->id, (string) $a->id);
         })->values();
 
@@ -77,6 +79,7 @@ class ForceDisableTargetSelector
                 // With >=2 active admins this never triggers (rule is "last admin only").
                 if ($survivingAdmins <= 0) {
                     $adminsProtected[] = $u->external_user_id;
+
                     continue;
                 }
                 // Otherwise it's safe to disable: it leaves at least one admin.
