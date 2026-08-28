@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasOne;
@@ -10,13 +11,13 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 class LicenseKey extends Model
 {
     use HasUuids;
-
+    use HasFactory;
     protected $keyType = 'string';
 
     public $incrementing = false;
 
     protected $fillable = [
-        'tenant_id', 'license_key', 'status',
+        'id', 'tenant_id', 'license_key', 'status',
         'issued_at', 'valid_until', 'last_synced_at',
         'hardware_id', 'instance_id', 'hostname',
         'app_version', 'php_version',

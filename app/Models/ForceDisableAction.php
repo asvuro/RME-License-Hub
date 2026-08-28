@@ -3,19 +3,20 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class ForceDisableAction extends Model
 {
     use HasUuids;
-
+    use HasFactory;
     protected $keyType = 'string';
 
     public $incrementing = false;
 
     protected $fillable = [
-        'tenant_id', 'entitlement_id', 'trigger_type',
+        'id', 'tenant_id', 'entitlement_id', 'trigger_type',
         'previous_limit', 'new_limit',
         'users_to_disable', 'users_actually_disabled',
         'admin_last_protected', 'status',

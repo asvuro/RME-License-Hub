@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -10,13 +11,13 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class LicenseEntitlement extends Model
 {
     use HasUuids;
-
+    use HasFactory;
     protected $keyType = 'string';
 
     public $incrementing = false;
 
     protected $fillable = [
-        'license_key_id', 'tenant_id', 'tier_id', 'status',
+        'id', 'license_key_id', 'tenant_id', 'tier_id', 'status',
         'base_max_users', 'base_max_branches',
         'effective_max_users', 'effective_max_branches',
         'effective_modules', 'valid_from', 'valid_until',

@@ -3,19 +3,20 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class LicenseAddon extends Model
 {
     use HasUuids;
-
+    use HasFactory;
     protected $keyType = 'string';
 
     public $incrementing = false;
 
     protected $fillable = [
-        'entitlement_id', 'addon_type', 'target_module_slug',
+        'id', 'entitlement_id', 'addon_type', 'target_module_slug',
         'quantity', 'label', 'effective_from', 'effective_until',
         'status',
     ];
