@@ -61,11 +61,16 @@ class LicenseApiController extends Controller
             ], 422);
         }
 
-        // Check license key status
-        if ($licenseKeyModel->status === 'revoked') {
+        // Check license key status. A revoked or suspended key must never be
+        // (re)activated — without this gate, admin's revoke/suspend actions in
+        // the dashboard are purely cosmetic because the client can still phone
+        // home and mint new tokens via heartbeat/validate.
+        if (in_array($licenseKeyModel->status, ['revoked', 'suspended'], true)) {
+            $reason = $licenseKeyModel->status === 'suspended' ? 'suspended' : 'revoked';
+
             return response()->json([
                 'success' => false,
-                'message' => 'License key has been revoked.',
+                'message' => 'License key has been '.$reason.'.',
             ], 422);
         }
 
@@ -222,6 +227,21 @@ class LicenseApiController extends Controller
             ], 200);
         }
 
+        // Enforce the parent LicenseKey status. Admin revoke/suspend actions in
+        // the dashboard flip LicenseKey.status, but the client keeps phoning
+        // home through this endpoint as long as the entitlement stays `active`.
+        // Without this gate a revoked/suspended key is purely cosmetic — the
+        // client silently keeps minting fresh tokens. We mirror the
+        // "unlicensed"/"expired" shape (200 + success:false + a clear status).
+        $licenseKeyStatus = $entitlement->licenseKey?->status;
+        if (in_array($licenseKeyStatus, ['revoked', 'suspended'], true)) {
+            return response()->json([
+                'success' => false,
+                'status' => $licenseKeyStatus,
+                'message' => 'License key has been '.$licenseKeyStatus.'.',
+            ], 200);
+        }
+
         // Expire due add-ons and recalculate
         $previousMaxUsers = $entitlement->effective_max_users;
         $this->calculator->expireDueAddons($entitlement);
@@ -317,6 +337,18 @@ class LicenseApiController extends Controller
                 'success' => false,
                 'status' => 'unlicensed',
                 'message' => 'No active entitlement found.',
+            ]);
+        }
+
+        // Enforce the parent LicenseKey status (mirrors heartbeat()). Admin
+        // revoke/suspend flips LicenseKey.status but must actually cut the
+        // client off — not just be a cosmetic dashboard flag.
+        $licenseKeyStatus = $entitlement->licenseKey?->status;
+        if (in_array($licenseKeyStatus, ['revoked', 'suspended'], true)) {
+            return response()->json([
+                'success' => false,
+                'status' => $licenseKeyStatus,
+                'message' => 'License key has been '.$licenseKeyStatus.'.',
             ]);
         }
 
