@@ -171,12 +171,65 @@ docker compose logs -f hub-reverb hub-queue
 
 ## 7. TLS (produksi)
 
-`docker/nginx.conf` sudah mem-proxy `/app/` ke Reverb. Untuk HTTPS:
+`docker/nginx.conf` sekarang berisi **dua** server block:
 
-1. Letakkan sertifikat di `docker/tls/` (volume `hub-tls`) dan aktifkan blok
-   `listen 443 ssl` di nginx (template sudah menyediakan pemetaan volume).
-2. Set `REVERB_SCHEME=https` dan `REVERB_HOST=<domain publik>` di `.env`.
-3. Client wajib `wss` — `Modules/Grup` menolak scheme non-wss di produksi.
+- **`:80`** — hanya redirect ke HTTPS (`return 307 https://$host$request_uri;`).
+  Tidak ada proxy di sini; semua traffic dialihkan ke 443.
+- **`:443 ssl`** — block asli yang mem-proxy aplikasi (`hub-app:9000`) dan
+  `/app/` ke Reverb. Block ini membaca sertifikat dari:
+  - `ssl_certificate` → `/etc/nginx/certs/fullchain.pem`
+  - `ssl_certificate_key` → `/etc/nginx/certs/privkey.pem`
+
+`docker-compose.yml` sudah membuka port `443` (default, override via
+`HTTPS_PORT`) dan mem-mount volume `hub-tls` ke **`/etc/nginx/certs`** (bukan
+`/etc/nginx/tls` — path di nginx.conf dan mount compose harus cocok). Volume
+ini **belum** berisi sertifikat; tanpa file `fullchain.pem`/`privkey.pem` di
+dalamnya, nginx **gagal start**.
+
+### Langkah aktifkan TLS (operator)
+
+1. **Siapkan sertifikat** dan taruh di mount `hub-tls`. Pilih salah satu:
+
+   - **Produksi (Let's Encrypt / CA nyata):** letakkan `fullchain.pem` dan
+     `privkey.pem` ke dalam volume `hub-tls` (mis. pakai bind mount direktori
+     lokal ke `/etc/nginx/certs`, atau copy via `docker volume` / `docker cp`).
+   - **Dev/lokal (self-signed, untuk test):**
+
+     ```bash
+     mkdir -p docker/certs
+     openssl req -x509 -newkey rsa:2048 -nodes \
+         -keyout docker/certs/privkey.pem \
+         -out docker/certs/fullchain.pem \
+         -days 365 -subj "/CN=localhost"
+     chmod 600 docker/certs/privkey.pem
+     ```
+
+     Lalu ubah mount di `docker-compose.yml` (atau tambah override) agar
+     direktori lokal dipakai:
+
+     ```yaml
+     services:
+       hub-nginx:
+         volumes:
+           - ./docker/certs:/etc/nginx/certs:ro
+     ```
+
+2. **Verifikasi** cert/key ada di container sebelum naikkan layanan:
+
+   ```bash
+   docker compose run --rm hub-nginx ls -l /etc/nginx/certs
+   ```
+
+3. **Naikkan** dan pastikan nginx start tanpa error:
+
+   ```bash
+   docker compose up -d hub-nginx
+   docker compose logs hub-nginx   # harus "configuration complete; ready"
+   curl -kI https://localhost/     # -k karena self-signed di dev
+   ```
+
+4. Set `REVERB_SCHEME=https` dan `REVERB_HOST=<domain publik>` di `.env`.
+5. Client wajib `wss` — `Modules/Grup` menolak scheme non-wss di produksi.
 
 ---
 

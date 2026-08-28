@@ -87,8 +87,11 @@ services:
       - "${HTTPS_PORT:-443}:443"
     volumes:
       - ./docker/nginx.conf:/etc/nginx/conf.d/default.conf:ro
-      # Sertifikat TLS (opsional, mount saat produksi).
-      - hub-tls:/etc/nginx/tls:ro
+      # Sertifikat TLS (mount saat produksi). Dipetakan ke /etc/nginx/certs,
+      # sesuai path ssl_certificate/ssl_certificate_key di nginx.conf.
+      # Taruh fullchain.pem + privkey.pem di sana (atau mount bind direktori
+      # lokal, mis. ./docker/certs:/etc/nginx/certs:ro) sebelum expose 443.
+      - hub-tls:/etc/nginx/certs:ro
     depends_on: [hub-app, hub-reverb]
     networks: [hub-net]
 
