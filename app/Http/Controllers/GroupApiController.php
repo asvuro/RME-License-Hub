@@ -78,14 +78,18 @@ class GroupApiController extends Controller
 
         // Channel must be the reconciled private-grup.instance.{instance_id}
         // AND the instance must match both the token's tenant and the header.
-        $expectedChannel = GrupNotification::CHANNEL_PREFIX.$instanceId;
+        // The client sends the full WIRE channel name (as a real Pusher/Reverb
+        // client SDK does when requesting channel auth), which includes the
+        // "private-" prefix that PrivateChannel adds automatically on the
+        // broadcastOn() side. CHANNEL_PREFIX itself intentionally excludes it.
+        $expectedChannel = 'private-'.GrupNotification::CHANNEL_PREFIX.$instanceId;
         if ($instanceId === '' || $headerInstance === '' || $channel !== $expectedChannel || ! hash_equals($headerInstance, $instanceId)) {
             return response()->json(['success' => false, 'message' => 'Channel authorization denied.'], 403);
         }
 
         $socketId = $data['socket_id'];
         $stringToSign = $socketId.':'.$channel;
-        $secret = (string) config('reverb.apps.0.secret', config('reverb.app_secret', ''));
+        $secret = (string) config('reverb.apps.apps.0.secret', '');
 
         if ($secret === '') {
             return response()->json(['success' => false, 'message' => 'Reverb app secret not configured.'], 500);
@@ -94,7 +98,7 @@ class GroupApiController extends Controller
         $signature = hash_hmac('sha256', $stringToSign, $secret);
 
         return response()->json([
-            'auth' => config('reverb.apps.0.key', config('reverb.app_key', '')).':'.$signature,
+            'auth' => config('reverb.apps.apps.0.key', '').':'.$signature,
         ]);
     }
 

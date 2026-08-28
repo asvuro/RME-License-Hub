@@ -17,8 +17,8 @@ class GrupRealtimeAuthTest extends DatabaseTestCase
     {
         parent::setUp();
         // Deterministic Reverb app credentials for the auth signing test.
-        Config::set('reverb.apps.0.key', 'test_key');
-        Config::set('reverb.apps.0.secret', 'test_secret');
+        Config::set('reverb.apps.apps.0.key', 'test_key');
+        Config::set('reverb.apps.apps.0.secret', 'test_secret');
     }
 
     private function tenantWithInstance(string $instanceId, ?string $groupId = null): Tenant
@@ -44,7 +44,7 @@ class GrupRealtimeAuthTest extends DatabaseTestCase
 
         $response = $this->postJson('/api/v1/group/realtime/auth', [
             'socket_id' => '123.456',
-            'channel_name' => GrupNotification::CHANNEL_PREFIX.$instance,
+            'channel_name' => 'private-'.GrupNotification::CHANNEL_PREFIX.$instance,
         ], ['Authorization' => 'Bearer '.$token, 'X-RME-Instance-ID' => $instance]);
 
         $response->assertStatus(200);
@@ -60,7 +60,7 @@ class GrupRealtimeAuthTest extends DatabaseTestCase
 
         $response = $this->postJson('/api/v1/group/realtime/auth', [
             'socket_id' => '123.456',
-            'channel_name' => GrupNotification::CHANNEL_PREFIX.'INST-AAA',
+            'channel_name' => 'private-'.GrupNotification::CHANNEL_PREFIX.'INST-AAA',
         ], ['Authorization' => 'Bearer '.$token, 'X-RME-Instance-ID' => 'INST-EVIL']);
 
         $response->assertStatus(403);
@@ -70,7 +70,7 @@ class GrupRealtimeAuthTest extends DatabaseTestCase
     {
         $this->postJson('/api/v1/group/realtime/auth', [
             'socket_id' => '123.456',
-            'channel_name' => GrupNotification::CHANNEL_PREFIX.'INST-AAA',
+            'channel_name' => 'private-'.GrupNotification::CHANNEL_PREFIX.'INST-AAA',
         ])->assertStatus(401);
     }
 
@@ -83,7 +83,7 @@ class GrupRealtimeAuthTest extends DatabaseTestCase
         // Attempting to auth a DIFFERENT instance's channel must fail (fail-closed).
         $response = $this->postJson('/api/v1/group/realtime/auth', [
             'socket_id' => '123.456',
-            'channel_name' => GrupNotification::CHANNEL_PREFIX.'INST-BBB',
+            'channel_name' => 'private-'.GrupNotification::CHANNEL_PREFIX.'INST-BBB',
         ], ['Authorization' => 'Bearer '.$token, 'X-RME-Instance-ID' => 'INST-AAA']);
 
         $response->assertStatus(403);
@@ -100,7 +100,7 @@ class GrupRealtimeAuthTest extends DatabaseTestCase
         $tenant->update(['api_token_hash' => hash('sha256', $token)]);
 
         $socketId = '999.111';
-        $channel = GrupNotification::CHANNEL_PREFIX.$instance;
+        $channel = 'private-'.GrupNotification::CHANNEL_PREFIX.$instance;
 
         $response = $this->postJson('/api/v1/group/realtime/auth', [
             'socket_id' => $socketId,
