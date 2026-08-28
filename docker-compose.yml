@@ -1,0 +1,164 @@
+# RME-License-Hub — deployment referensi (single-host, production-grade).
+#
+# Pola mengikuti docker/loadtest tim (php-fpm + nginx, PHP 8.4) namun untuk
+# produksi hub: proses dipisah menjadi app (php-fpm), nginx (edge), reverb
+# (websocket), queue worker, dan scheduler. State disimpan di volume MariaDB
+# & Redis.
+#
+# Jalankan:  docker compose up -d --build
+# Lihat DEPLOYMENT.md untuk langkah lengkap (RSA keypair, reverb creds, dll).
+
+services:
+  # --- Database (MariaDB) ------------------------------------------------
+  hub-db:
+    image: mariadb:11.4
+    restart: unless-stopped
+    environment:
+      MARIADB_DATABASE: ${DB_DATABASE:-rme_license_hub}
+      MARIADB_USER: ${DB_USERNAME:-hub}
+      MARIADB_PASSWORD: ${DB_PASSWORD:-hubpassword}
+      MARIADB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-hubroot}
+    volumes:
+      - hub-db-data:/var/lib/mysql
+    ports:
+      # Hanya untuk debugging lokal; di produksi hapus expose ini.
+      - "127.0.0.1:3306:3306"
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [hub-net]
+
+  # --- Cache / Queue / Reverb scaling (Redis) ---------------------------
+  hub-redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "256mb", "--maxmemory-policy", "allkeys-lru"]
+    volumes:
+      - hub-redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    networks: [hub-net]
+
+  # --- Application (PHP-FPM) — dipanggil nginx & sebagai base reverb/queue
+  hub-app:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    restart: unless-stopped
+    env_file: [.env]
+    environment:
+      APP_ENV: ${APP_ENV:-production}
+      APP_DEBUG: ${APP_DEBUG:-false}
+      # php-fpm mendengarkan 9000; nginx memanggilnya.
+      DB_HOST: hub-db
+      DB_PORT: 3306
+      REDIS_HOST: hub-redis
+      REDIS_PORT: 6379
+      # Proses terpisah berbagi konfigurasi berikut:
+      BROADCAST_CONNECTION: reverb
+      QUEUE_CONNECTION: redis
+      CACHE_STORE: redis
+      # Reverb: app container terhubung ke server reverb via hostname service.
+      REVERB_HOST: hub-reverb
+      REVERB_SERVER_HOST: 0.0.0.0
+    depends_on:
+      hub-db:
+        condition: service_healthy
+      hub-redis:
+        condition: service_healthy
+    networks: [hub-net]
+
+  # --- Edge: nginx (web + reverse proxy Reverb /app) --------------------
+  hub-nginx:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    ports:
+      - "${HTTP_PORT:-80}:80"
+      # 443 dibuka bila TLS diaktifkan di deployment nyata (lihat DEPLOYMENT.md).
+      - "${HTTPS_PORT:-443}:443"
+    volumes:
+      - ./docker/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      # Sertifikat TLS (opsional, mount saat produksi).
+      - hub-tls:/etc/nginx/tls:ro
+    depends_on: [hub-app, hub-reverb]
+    networks: [hub-net]
+
+  # --- Reverb WebSocket server (proses terpisah) ------------------------
+  hub-reverb:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    restart: unless-stopped
+    command: ["php", "artisan", "reverb:start", "--host=0.0.0.0", "--port=8080"]
+    env_file: [.env]
+    environment:
+      APP_ENV: ${APP_ENV:-production}
+      BROADCAST_CONNECTION: reverb
+      REVERB_HOST: hub-reverb
+      REVERB_SERVER_HOST: 0.0.0.0
+      REVERB_SERVER_PORT: 8080
+      REVERB_PORT: 8080
+      REVERB_SCHEME: ${REVERB_SCHEME:-http}
+      # Scaling Reverb via Redis (aman untuk multi-instance nanti).
+      REVERB_SCALING_ENABLED: "true"
+      REDIS_HOST: hub-redis
+      REDIS_PORT: 6379
+    expose:
+      - "8080"
+    depends_on:
+      hub-redis:
+        condition: service_healthy
+    networks: [hub-net]
+
+  # --- Queue worker (proses terpisah) -----------------------------------
+  hub-queue:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    restart: unless-stopped
+    command: ["php", "artisan", "queue:work", "--queue=default,grup,webhooks", "--tries=3", "--max-time=3600"]
+    env_file: [.env]
+    environment:
+      APP_ENV: ${APP_ENV:-production}
+      QUEUE_CONNECTION: redis
+      REDIS_HOST: hub-redis
+      REDIS_PORT: 6379
+    depends_on:
+      hub-db:
+        condition: service_healthy
+      hub-redis:
+        condition: service_healthy
+    networks: [hub-net]
+
+  # --- Scheduler (proses terpisah, untuk retry webhook/prune) -----------
+  hub-scheduler:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    restart: unless-stopped
+    command: ["php", "artisan", "schedule:work"]
+    env_file: [.env]
+    environment:
+      APP_ENV: ${APP_ENV:-production}
+      DB_HOST: hub-db
+      REDIS_HOST: hub-redis
+    depends_on:
+      hub-db:
+        condition: service_healthy
+      hub-redis:
+        condition: service_healthy
+    networks: [hub-net]
+
+volumes:
+  hub-db-data:
+  hub-redis-data:
+  hub-tls:
+
+networks:
+  hub-net:
+    driver: bridge
