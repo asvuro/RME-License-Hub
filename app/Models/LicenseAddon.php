@@ -2,12 +2,16 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class LicenseAddon extends Model
 {
+    use HasUuids;
+
     protected $keyType = 'string';
+
     public $incrementing = false;
 
     protected $fillable = [
@@ -24,7 +28,7 @@ class LicenseAddon extends Model
 
     public function entitlement(): BelongsTo
     {
-        return $this->belongsTo(LicenseEntitlement::class);
+        return $this->belongsTo(LicenseEntitlement::class, 'entitlement_id');
     }
 
     public function isExpired(): bool

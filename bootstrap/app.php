@@ -1,5 +1,7 @@
 <?php
 
+use App\Models\HubAdmin;
+use App\Models\User;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -14,7 +16,21 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        //
+        // When the dedicated "hub" admin guard rejects an unauthenticated
+        // request, redirect to the admin login (NOT the client "login" route).
+        $middleware->redirectGuestsTo(function (Request $request) {
+            if ($request->is('hub/*') || $request->routeIs('hub.*')) {
+                return route('hub.login');
+            }
+
+            return null;
+        });
+
+        // Ensure the framework knows which guard owns the "hub" route space
+        // so the Authenticate middleware can pick the right redirect.
+        $middleware->alias([
+            'auth.hub' => \Illuminate\Auth\Middleware\Authenticate::using('hub'),
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(
