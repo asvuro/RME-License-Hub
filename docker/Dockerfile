@@ -19,6 +19,10 @@ FROM php:8.4-fpm
 RUN apt-get update && apt-get install -y --no-install-recommends \
         libzip-dev libicu-dev libonig-dev libpng-dev $PHPIZE_DEPS \
         default-mysql-client \
+        # cgi-fcgi (libfcgi-bin): in-container FastCGI probe for php-fpm in
+        # hub-app (which has no HTTP server of its own — nginx is a separate
+        # container). procps (pgrep): liveness checks for hub-queue/scheduler.
+        libfcgi-bin procps \
     && docker-php-ext-install \
         pdo_mysql bcmath mbstring intl zip opcache pcntl \
     && pecl install redis && docker-php-ext-enable redis \
@@ -86,5 +90,9 @@ RUN mkdir -p storage/app/public storage/framework/cache/data storage/framework/s
 # Entrypoint menyalakan php-fpm (default) atau perintah lain (reverb/queue).
 COPY docker/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
+# Shared healthcheck (branches on HUB_HEALTHCHECK per-service in compose).
+COPY docker/healthcheck.sh /usr/local/bin/healthcheck.sh
+RUN chmod +x /usr/local/bin/healthcheck.sh
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
 CMD ["php-fpm"]

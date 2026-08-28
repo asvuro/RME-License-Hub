@@ -70,11 +70,24 @@ services:
       # Reverb: app container terhubung ke server reverb via hostname service.
       REVERB_HOST: hub-reverb
       REVERB_SERVER_HOST: 0.0.0.0
+      # Healthcheck mode selector (see docker/healthcheck.sh).
+      HUB_HEALTHCHECK: app
     depends_on:
       hub-db:
         condition: service_healthy
       hub-redis:
         condition: service_healthy
+    # Prove php-fpm actually serves the Laravel `/up` route (registered via
+    # `health: '/up'` in bootstrap/app.php) via an in-container FastCGI probe
+    # (no HTTP server here — hub-nginx is a separate container). Longer
+    # start_period than redis/db because Laravel bootstrap + config:cache is
+    # slower than a bare fpm socket coming up.
+    healthcheck:
+      test: ["CMD", "healthcheck.sh"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
     networks: [hub-net]
 
   # --- Edge: nginx (web + reverse proxy Reverb /app) --------------------
@@ -117,6 +130,8 @@ services:
       REVERB_SCALING_ENABLED: "true"
       REDIS_HOST: hub-redis
       REDIS_PORT: 6379
+      # Healthcheck mode selector (see docker/healthcheck.sh).
+      HUB_HEALTHCHECK: reverb
     expose:
       - "8080"
     depends_on:
@@ -124,6 +139,15 @@ services:
         condition: service_healthy
       hub-redis:
         condition: service_healthy
+    # Reverb is a long-running websocket server bound to TCP 8080. Prove the
+    # server socket is actually open and accepting connections (not just that
+    # the process is alive) via a TCP liveness probe.
+    healthcheck:
+      test: ["CMD", "healthcheck.sh"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
     networks: [hub-net]
 
   # --- Queue worker (proses terpisah) -----------------------------------
@@ -148,11 +172,22 @@ services:
       # Found via a real WebSocket end-to-end test, not review.
       BROADCAST_CONNECTION: reverb
       REVERB_HOST: hub-reverb
+      # Healthcheck mode selector (see docker/healthcheck.sh).
+      HUB_HEALTHCHECK: queue
     depends_on:
       hub-db:
         condition: service_healthy
       hub-redis:
         condition: service_healthy
+    # Queue worker runs `php artisan queue:work` — no HTTP server. Verify the
+    # worker master process is actually alive (process-alive liveness), which is
+    # the simplest correct check for a worker that exposes nothing.
+    healthcheck:
+      test: ["CMD", "healthcheck.sh"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
     networks: [hub-net]
 
   # --- Scheduler (proses terpisah, untuk retry webhook/prune) -----------
@@ -172,11 +207,23 @@ services:
       QUEUE_CONNECTION: redis
       BROADCAST_CONNECTION: reverb
       REVERB_HOST: hub-reverb
+      # Healthcheck mode selector (see docker/healthcheck.sh).
+      HUB_HEALTHCHECK: scheduler
     depends_on:
       hub-db:
         condition: service_healthy
       hub-redis:
         condition: service_healthy
+    # Scheduler runs `php artisan schedule:work` — a long-lived master loop that
+    # fires the Laravel scheduler every minute. Same approach as the queue
+    # worker: a process-alive check (no HTTP server), the simplest correct
+    # liveness probe for a process that exposes nothing.
+    healthcheck:
+      test: ["CMD", "healthcheck.sh"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
     networks: [hub-net]
 
 volumes:
