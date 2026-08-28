@@ -287,16 +287,20 @@ in the payload — it is pulled on demand through the `GroupRelay` REST endpoint
 | Component | Status | Notes |
 |-----------|--------|-------|
 | Laravel scaffold | ✅ Done | |
-| Database migrations | 🔄 In progress | |
-| Eloquent models | ⏳ Pending | |
-| License activation API | ⏳ Pending | POST /api/v1/licenses/activate |
-| Heartbeat/sync API | ⏳ Pending | POST /api/v1/licenses/heartbeat |
-| Webhook sender (hub→client) | ⏳ Pending | HMAC + retry logic |
-| Module status sync | ⏳ Pending | POST /v1/system/license/modules-sync |
-| Force-disable logic | ⏳ Pending | With admin protection + warnings |
-| Reverb setup | ⏳ Pending | Group realtime channels |
-| Admin dashboard | ⏳ Pending | License management UI |
-| Tests (critical paths) | ⏳ Pending | Entitlement calc, force-disable, admin guard |
+| Database migrations | ✅ Done | 21 migrations, idempotency-tested |
+| Eloquent models | ✅ Done | |
+| License activation API | ✅ Done | POST /api/v1/licenses/activate, RSA-signed tokens |
+| Heartbeat/sync API | ✅ Done | POST /api/v1/licenses/heartbeat |
+| Webhook sender (hub→client) | ✅ Done | HMAC + retry logic, SSRF-guarded to instance_url |
+| Module status sync | ✅ Done | Full modules_statuses push |
+| Force-disable logic | ✅ Done | Hub-authoritative, warning-before-execute, last-admin-protected |
+| Grup realtime (Reverb) | ✅ Done | Verified end-to-end against the real RME-Backend client (2 real bugs found+fixed, see docs/reconciliation-with-grup-module.md §6) |
+| Grup referral relay | ✅ Done | Hub-authoritative group_referrals store (create/accept/reject lifecycle) |
+| Admin dashboard | ✅ Done | Livewire — tenant/tier/addon/license/group CRUD |
+| Docker deployment | ✅ Done | docker-compose.yml, see DEPLOYMENT.md |
+| Tests (critical paths) | ✅ Done | 76/76 passing — entitlement calc, force-disable, license activation/heartbeat, admin guard, referral flow, migration idempotency |
+| Production secrets (RSA/webhook/HMAC) | ⏳ Not generated | Placeholders only — see DEPLOYMENT.md §2, §5 before real deployment |
+| Live integration test vs a running RME-Backend instance | ⏳ Not yet | Verified vs RME-Backend's `GroupHubClient` directly (tinker); not yet via RME-Backend's own HTTP endpoints end-to-end |
 
 ---
 

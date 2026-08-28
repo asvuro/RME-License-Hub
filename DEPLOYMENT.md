@@ -39,26 +39,30 @@ cp .env.example .env
 Hub menandatangani token lisensi dengan RSA-SHA256; klien (RME-Backend
 `SystemLicenseGuard`) memverifikasi dengan public key.
 
+Gunakan command artisan bawaan — sudah ada di `app/Console/Commands/GenerateLicenseKeyPair.php`:
+
 ```bash
-# Buat direktori kunci (sudah ada di image; untuk baremetal:
-mkdir -p storage/keys
-
-# Generate 2048-bit RSA (private + public)
-openssl genpkey -algorithm RSA -out storage/keys/license_private.key \
-    -pkeyopt rsa_keygen_bits:2048
-openssl rsa -in storage/keys/license_private.key \
-    -pubout -out storage/keys/license_public.key
-
-chmod 600 storage/keys/license_private.key
+php artisan license:generate-keys
+# Pakai --force untuk menimpa kunci yang sudah ada (mis. rotasi terjadwal).
 ```
 
-Distribusikan `storage/keys/license_public.key` ke setiap instalasi RME-Backend
-sebagai konfigurasi verifikasi `SystemLicenseGuard`. **Jangan** pernah mengirim
-private key ke client.
+Ini menulis `storage/keys/license_private.pem` (chmod 600) dan
+`storage/keys/license_public.pem` (chmod 644) — path dibaca dari
+`config('license.private_key_path')` / `public_key_path`, default sudah cocok
+dengan `.env.example`. Distribusikan **hanya** file `license_public.pem` ke
+setiap instalasi RME-Backend sebagai konfigurasi verifikasi
+`SystemLicenseGuard`. **Jangan** pernah mengirim private key ke client.
 
-> Bila ada artisan command `license:keys:generate`, gunakan itu sebagai ganti
-> OpenSSL manual (hasil identik). Verifikasi bahwa `LICENSE_PRIVATE_KEY_PATH` /
-> `LICENSE_PUBLIC_KEY_PATH` di `.env` menunjuk ke file tersebut.
+Kalau lebih suka OpenSSL manual (hasil identik):
+
+```bash
+mkdir -p storage/keys
+openssl genpkey -algorithm RSA -out storage/keys/license_private.pem \
+    -pkeyopt rsa_keygen_bits:2048
+openssl rsa -in storage/keys/license_private.pem \
+    -pubout -out storage/keys/license_public.pem
+chmod 600 storage/keys/license_private.pem
+```
 
 ---
 
@@ -115,6 +119,26 @@ openssl rand -hex 32
 
 Catatan keamanan: secret HMAC **per-instance** (dapat dirotasi). Mekanisme rotasi
 tanpa downtime belum final — lihat §"Rotasi" di `docs/reconciliation-with-grup-module.md`.
+
+---
+
+## 5a. ⚠️ JEBAKAN: `config:cache` sebelum test bisa menghapus data sungguhan
+
+Ditemukan sendiri lewat pengalaman langsung (2026-08-28): kalau `php artisan
+config:cache` PERNAH dijalankan di suatu environment (server dev/staging, atau
+container yang sama dipakai untuk deploy DAN test), maka `php artisan test`
+setelahnya **DIAM-DIAM MENGABAIKAN** override `DB_DATABASE=:memory:` di
+`phpunit.xml` — karena `config()` membaca file cache statis, bukan
+mengevaluasi ulang `env()`. Efeknya: `RefreshDatabase` di test suite akan
+migrate-fresh (drop semua tabel lalu isi ulang kosong) **database sungguhan**
+yang dipakai `config:cache` tadi, bukan `:memory:`.
+
+**Aturan wajib**: JANGAN PERNAH jalankan `php artisan config:cache` di
+container/proses yang sama dengan yang dipakai untuk `php artisan test` —
+pisahkan environment build (boleh `config:cache`) dari environment CI/test
+(jangan pernah `config:cache`, atau jalankan `php artisan config:clear`
+tepat sebelum `php artisan test`). Skrip CI harus eksplisit
+`config:clear && artisan test`, bukan asumsi container test selalu bersih.
 
 ---
 

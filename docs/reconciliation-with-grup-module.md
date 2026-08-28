@@ -139,3 +139,50 @@ yang **sudah dibangun**, bukan ke draf README semata.
 
 Catatan: agen lain (codex) membangun sisi client `Modules/Grup`; perubahan di sini
 hanya menyelaraskan **nama/bentuk data sisi hub** dan tidak merombak kode codex.
+
+---
+
+## 6. Verifikasi END-TO-END sungguhan (2026-08-28, pasca-rekonsiliasi awal)
+
+Dokumen ini di atas ditulis dari HASIL BACA KODE kedua sisi (analisis statis),
+belum pernah dijalankan bersamaan. Setelah backend hub selesai, dilakukan
+verifikasi nyata: `php artisan serve` hub (port 8090) + `GroupHubClient` ASLI
+dari RME-Backend (tanpa modifikasi) dipanggil lewat `php artisan tinker`
+langsung ke hub yang hidup, melalui HTTP sungguhan (bukan mock/test-double).
+
+**2 bug NYATA ditemukan** — keduanya TIDAK ketahuan oleh test unit terisolasi
+di hub karena fixture test hub kebetulan meniru asumsi salah yang SAMA dengan
+implementasinya sendiri (bug tersembunyi di balik konsistensi internal palsu):
+
+1. `POST /api/v1/group/realtime/auth` menolak SEMUA request asli dengan 403.
+   Sebab: hub membandingkan `channel_name` yang dikirim client (wire name
+   asli SDK Pusher/Reverb, `private-grup.instance.{id}`) dengan
+   `$expectedChannel` yang lupa prefix `private-` (hub cuma pakai
+   `GrupNotification::CHANNEL_PREFIX` mentah = `grup.instance.{id}`).
+2. Setelah #1 diperbaiki, endpoint yang sama gagal 500 "Reverb app secret not
+   configured". Sebab: hub baca `config('reverb.apps.0.secret')`, padahal
+   struktur asli package Reverb (provider `config`) menaruhnya di
+   `config('reverb.apps.apps.0.secret')` (nested sekali lagi di bawah key
+   `apps`).
+
+Setelah kedua fix, diverifikasi END-TO-END lewat `GroupHubClient` asli
+(bukan test hub yang saya tulis sendiri, supaya bebas dari bias asumsi yang
+sama): `context()`, `realtimeAuth()` (HMAC diverifikasi kriptografis cocok),
+`createReferral()`, `updateReferral()` (siklus create → accept) — SEMUA
+round-trip benar melalui HTTP sungguhan antar dua repo terpisah.
+
+**Pelajaran untuk verifikasi kontrak lintas-repo ke depan**: test unit yang
+menulis fixture-nya sendiri berdasarkan pemahaman implementasi yang SAMA
+(bukan spesifikasi independen) tidak bisa mendeteksi bug asumsi bersama.
+Verifikasi sungguhan (kedua sisi hidup, saling panggil via HTTP nyata) adalah
+satu-satunya cara menutup celah ini — sudah terbukti menemukan 2 bug yang
+lolos dari 76 test hub yang semuanya hijau.
+
+**Endpoint referral BARU ditambahkan** (tidak ada di rekonsiliasi awal —
+ditemukan sebagai gap nyata saat audit kontrak penuh sebelum verifikasi
+end-to-end): `GroupHubClient::createReferral()`/`updateReferral()` mem-POST/
+PATCH ke `/api/v1/group/relay/referrals`, tapi hub sebelumnya HANYA punya
+proxy GET generik — tidak ada tempat menyimpan rujukan. Lihat
+`app/Http/Controllers/GroupApiController.php` (`storeReferral`/
+`updateReferral`/`listReferrals`/`showReferral`) + tabel `group_referrals`
+baru (hub-authoritative, sumber kebenaran status rujukan lintas cabang).
