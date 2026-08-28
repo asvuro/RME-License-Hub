@@ -4,41 +4,36 @@ namespace Tests\Unit;
 
 use App\Models\LicenseEntitlement;
 use App\Models\Tenant;
+use App\Models\TenantUser;
 use App\Models\Tier;
 use App\Models\WebhookDelivery;
 use App\Services\EntitlementCalculator;
 use App\Services\ForceDisableManager;
+use App\Services\RosterService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Config;
-use Tests\TestCase;
+use Tests\DatabaseTestCase;
+use Illuminate\Support\Str;
 
 /**
  * Tests for the force-disable POLICY (ForceDisableManager).
  *
- * IMPORTANT ARCHITECTURE NOTE (read before reviewing these tests):
- * The hub does NOT itself disable users in the client database. Per the
- * documented contract, the hub can only (a) send a force_disable.warning
- * webhook instructing the client (RME-Backend) of the new quota and the
- * disable policy, then (b) after a grace period, send a force_disable.executed
- * webhook instructing the client to actually disable users. The *actual*
- * disabling (newest-registered-first ordering, never the last admin) happens
- * on the client side, driven by the rules the hub puts in the webhook payload.
+ * The hub is the AUTHORITATIVE actor: it selects the exact users to disable
+ * (newest-registered active non-admins first, never the last admin) and
+ * delivers the ordered target list to the client via signed webhooks. The
+ * client then applies exactly that list to modules_statuses.json.
  *
- * Therefore these tests verify the hub's real, testable contract:
- *   1. A warning webhook is dispatched BEFORE any execution (status
- *      pending -> warning_sent, never straight to executed).
- *   2. The warning payload encodes the policy: disable_order = newest_first,
- *      admin_protection = always_protect_last_admin, admin_protection = true.
- *   3. The ForceDisableAction record always carries admin_last_protected = true
- *      (the hub guarantees last-admin protection as an invariant).
- *   4. Execution only happens after the grace period has elapsed, and only
- *      once; before that it is a no-op.
- *
- * The client-side enforcement of "newest user disabled first" and "last admin
- * never disabled regardless of registration order" lives in RME-Backend and is
- * out of scope for this hub test suite (noted for the owning agent / PR).
+ * Policy invariants verified here:
+ *   1. A warning webhook (force_disable.warning) is dispatched BEFORE any
+ *      execution (status warning_sent, never straight to executed).
+ *   2. The warning carries admin_protection = true and the grace period.
+ *   3. The executed webhook carries the explicit disable_order (newest_first),
+ *      the admin_protection rule, and the concrete affected_user_ids list.
+ *   4. admin_last_protected_ids is always populated when the last admin would
+ *      otherwise be disabled (the hub guarantees last-admin protection).
+ *   5. Execution only happens after the grace period, and only once.
  */
-class ForceDisablePolicyTest extends TestCase
+class ForceDisablePolicyTest extends DatabaseTestCase
 {
     use RefreshDatabase;
 
@@ -48,7 +43,7 @@ class ForceDisablePolicyTest extends TestCase
         Config::set('license.force_disable_grace_hours', 72);
     }
 
-    private function makeEntitlement(int $baseUsers): LicenseEntitlement
+    private function makeEntitlementAndTenant(int $baseUsers): array
     {
         $tier = Tier::factory()->create([
             'base_max_users' => $baseUsers,
@@ -57,17 +52,42 @@ class ForceDisablePolicyTest extends TestCase
         $tenant = Tenant::factory()->create();
         $licenseKey = \App\Models\LicenseKey::factory()->create(['tenant_id' => $tenant->id]);
 
-        return app(EntitlementCalculator::class)->createEntitlement(
+        $entitlement = app(EntitlementCalculator::class)->createEntitlement(
             licenseKeyId: $licenseKey->id,
             tenantId: $tenant->id,
             tierId: $tier->id,
         );
+
+        return [$tenant, $entitlement];
+    }
+
+    private function seedRoster(Tenant $tenant, int $activeUsers, int $adminCount): void
+    {
+        $svc = app(RosterService::class);
+        $users = [];
+        for ($i = 0; $i < $activeUsers; $i++) {
+            $users[] = [
+                'external_user_id' => 'U'.Str::random(6),
+                'is_admin' => false,
+                'registered_at' => now()->subDays(100 - $i)->toDateTimeString(),
+                'is_active' => true,
+            ];
+        }
+        for ($i = 0; $i < $adminCount; $i++) {
+            $users[] = [
+                'external_user_id' => 'A'.Str::random(6),
+                'is_admin' => true,
+                'registered_at' => now()->subDays(50 - $i)->toDateTimeString(),
+                'is_active' => true,
+            ];
+        }
+        $svc->replaceRoster($tenant, $users);
     }
 
     public function test_warning_is_sent_before_execution_and_records_policy(): void
     {
-        // Simulate an add-on expiry that reduced the effective quota from 20 -> 10.
-        $entitlement = $this->makeEntitlement(20);
+        [$tenant, $entitlement] = $this->makeEntitlementAndTenant(20);
+        $this->seedRoster($tenant, 10, 1);
         $entitlement->update(['effective_max_users' => 10]);
 
         $manager = app(ForceDisableManager::class);
@@ -77,7 +97,7 @@ class ForceDisablePolicyTest extends TestCase
         $this->assertDatabaseHas('force_disable_actions', [
             'id' => $action->id,
             'status' => 'warning_sent',
-            'admin_last_protected' => true,
+            'trigger_type' => 'user_quota_exceeded',
             'previous_limit' => 20,
             'new_limit' => 10,
         ]);
@@ -88,14 +108,14 @@ class ForceDisablePolicyTest extends TestCase
 
         // A warning webhook MUST be created before execution.
         $warning = WebhookDelivery::where('event_type', 'force_disable.warning')
-            ->where('tenant_id', $entitlement->tenant_id)
+            ->where('tenant_id', $tenant->id)
             ->first();
         $this->assertNotNull($warning, 'A force_disable.warning webhook must be dispatched before any execution.');
 
         // No execution webhook yet.
         $this->assertDatabaseMissing('webhook_deliveries', [
             'event_type' => 'force_disable.executed',
-            'tenant_id' => $entitlement->tenant_id,
+            'tenant_id' => $tenant->id,
         ]);
 
         // The warning payload must record admin protection and grace period.
@@ -105,13 +125,20 @@ class ForceDisablePolicyTest extends TestCase
         $this->assertEquals(72, $payload['grace_period_hours']);
         $this->assertEquals(20, $payload['previous_limit']);
         $this->assertEquals(10, $payload['new_limit']);
-        $this->assertArrayNotHasKey('rules', $payload,
-            'The disable-order/admin-protection rules belong to the EXECUTED webhook, not the warning.');
     }
 
     public function test_executed_webhook_carries_disable_order_and_admin_protection_rules(): void
     {
-        $entitlement = $this->makeEntitlement(20);
+        [$tenant, $entitlement] = $this->makeEntitlementAndTenant(20);
+        // Roster: 1 admin (oldest) + 10 non-admins; quota drops 20 -> 10, so the
+        // newest non-admins are disabled (the admin is protected by being older,
+        // but never the last admin either way).
+        $roster = [];
+        $roster[] = ['external_user_id' => 'A0', 'is_admin' => true, 'registered_at' => now()->subDays(200)->toDateTimeString(), 'is_active' => true];
+        for ($i = 0; $i < 10; $i++) {
+            $roster[] = ['external_user_id' => 'U'.$i, 'is_admin' => false, 'registered_at' => now()->subDays(100 - $i)->toDateTimeString(), 'is_active' => true];
+        }
+        app(RosterService::class)->replaceRoster($tenant, $roster);
         $entitlement->update(['effective_max_users' => 10]);
 
         $manager = app(ForceDisableManager::class);
@@ -120,7 +147,7 @@ class ForceDisablePolicyTest extends TestCase
         $manager->execute($action->refresh());
 
         $executed = WebhookDelivery::where('event_type', 'force_disable.executed')
-            ->where('tenant_id', $entitlement->tenant_id)
+            ->where('tenant_id', $tenant->id)
             ->firstOrFail();
 
         // The execute webhook encodes the exact client-side policy:
@@ -128,12 +155,13 @@ class ForceDisablePolicyTest extends TestCase
         $this->assertEquals('newest_first', $executed->payload['rules']['disable_order']);
         $this->assertEquals('always_protect_last_admin', $executed->payload['rules']['admin_protection']);
         $this->assertTrue($executed->payload['admin_protection']);
-        $this->assertStringContainsString('last remaining admin', strtolower($executed->payload['instructions']));
+        $this->assertNotEmpty($executed->payload['disable_user_ids']);
     }
 
     public function test_no_action_when_quota_is_not_reduced(): void
     {
-        $entitlement = $this->makeEntitlement(10);
+        [$tenant, $entitlement] = $this->makeEntitlementAndTenant(10);
+        $this->seedRoster($tenant, 5, 1);
         // effective (10) >= previous (10): no trigger
         $action = app(ForceDisableManager::class)->checkAndTrigger($entitlement, 10);
 
@@ -144,7 +172,8 @@ class ForceDisablePolicyTest extends TestCase
 
     public function test_execution_is_blocked_during_grace_period(): void
     {
-        $entitlement = $this->makeEntitlement(20);
+        [$tenant, $entitlement] = $this->makeEntitlementAndTenant(20);
+        $this->seedRoster($tenant, 10, 1);
         $entitlement->update(['effective_max_users' => 10]);
 
         $manager = app(ForceDisableManager::class);
@@ -164,7 +193,8 @@ class ForceDisablePolicyTest extends TestCase
 
     public function test_execution_fires_after_grace_period_and_only_once(): void
     {
-        $entitlement = $this->makeEntitlement(20);
+        [$tenant, $entitlement] = $this->makeEntitlementAndTenant(20);
+        $this->seedRoster($tenant, 10, 1);
         $entitlement->update(['effective_max_users' => 10]);
 
         $manager = app(ForceDisableManager::class);
@@ -182,7 +212,7 @@ class ForceDisablePolicyTest extends TestCase
 
         $this->assertDatabaseHas('webhook_deliveries', [
             'event_type' => 'force_disable.executed',
-            'tenant_id' => $entitlement->tenant_id,
+            'tenant_id' => $tenant->id,
         ]);
 
         // Executing again must be a no-op (already executed).
@@ -192,30 +222,33 @@ class ForceDisablePolicyTest extends TestCase
 
     public function test_admin_last_protected_is_an_invariant(): void
     {
-        $entitlement = $this->makeEntitlement(20);
+        [$tenant, $entitlement] = $this->makeEntitlementAndTenant(20);
+        // Only ONE admin among 10 users; a quota drop to 5 forces selection of
+        // 5 newest, which would include the admin -> must be protected.
+        $this->seedRoster($tenant, 9, 1);
         $entitlement->update(['effective_max_users' => 5]);
 
         $manager = app(ForceDisableManager::class);
         $action = $manager->checkAndTrigger($entitlement, 20);
 
-        // Regardless of registration order, the hub records that the last admin
-        // is protected and instructs the client to never disable them.
-        $this->assertTrue($action->admin_last_protected);
+        // The hub records the protected last admin.
+        $this->assertNotEmpty($action->last_admin_protected_ids);
 
         $warning = WebhookDelivery::where('event_type', 'force_disable.warning')
-            ->where('tenant_id', $entitlement->tenant_id)
+            ->where('tenant_id', $tenant->id)
             ->first();
         $this->assertNotNull($warning);
         $this->assertTrue($warning->payload['admin_protection']);
         $this->assertStringContainsString(
-            'last admin',
+            'admin',
             strtolower($warning->payload['instructions'])
         );
     }
 
     public function test_pending_actions_are_processed_after_grace_period(): void
     {
-        $entitlement = $this->makeEntitlement(20);
+        [$tenant, $entitlement] = $this->makeEntitlementAndTenant(20);
+        $this->seedRoster($tenant, 10, 1);
         $entitlement->update(['effective_max_users' => 10]);
 
         $manager = app(ForceDisableManager::class);

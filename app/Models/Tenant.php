@@ -16,6 +16,7 @@ class Tenant extends Model implements AuthenticatableContract
     use Authenticatable;
     use HasUuids;
     use HasFactory;
+
     protected $keyType = 'string';
 
     public $incrementing = false;
@@ -24,10 +25,15 @@ class Tenant extends Model implements AuthenticatableContract
         'id', 'group_id', 'client_code', 'client_name', 'legal_entity_name',
         'contact_email', 'contact_phone', 'address', 'status',
         'api_token_hash', 'webhook_secret_hash', 'last_heartbeat_at',
+        'instance_url', 'webhook_secret', 's2s_token',
     ];
 
     protected $casts = [
         'last_heartbeat_at' => 'datetime',
+        // Encrypted at rest so the hub can recover the plaintext to sign pushes
+        // to this client. Never expose these via API responses.
+        'webhook_secret' => 'encrypted',
+        's2s_token' => 'encrypted',
     ];
 
     public function group(): BelongsTo
@@ -58,6 +64,11 @@ class Tenant extends Model implements AuthenticatableContract
     public function heartbeats(): HasMany
     {
         return $this->hasMany(TenantHeartbeat::class);
+    }
+
+    public function tenantUsers(): HasMany
+    {
+        return $this->hasMany(TenantUser::class);
     }
 
     public function webhookDeliveries(): HasMany

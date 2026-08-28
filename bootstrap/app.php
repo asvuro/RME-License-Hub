@@ -16,6 +16,8 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        $middleware->statefulApi();
+
         // When the dedicated "hub" admin guard rejects an unauthenticated
         // request, redirect to the admin login (NOT the client "login" route).
         $middleware->redirectGuestsTo(function (Request $request) {

@@ -21,6 +21,8 @@ class ForceDisableAction extends Model
         'users_to_disable', 'users_actually_disabled',
         'admin_last_protected', 'status',
         'warning_sent_at', 'executed_at', 'metadata',
+        'affected_user_ids', 'last_admin_protected_ids',
+        'warning_event_id', 'executed_event_id',
     ];
 
     protected $casts = [
@@ -32,6 +34,8 @@ class ForceDisableAction extends Model
         'warning_sent_at' => 'datetime',
         'executed_at' => 'datetime',
         'metadata' => 'array',
+        'affected_user_ids' => 'array',
+        'last_admin_protected_ids' => 'array',
     ];
 
     public function tenant(): BelongsTo

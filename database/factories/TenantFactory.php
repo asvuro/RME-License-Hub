@@ -15,18 +15,22 @@ class TenantFactory extends Factory
 
     public function definition(): array
     {
+        $secret = Str::random(48);
+
         return [
             'id' => (string) Str::uuid(),
             'group_id' => null,
             'client_code' => strtoupper(fake()->unique()->bothify('CLIENT-####')),
             'client_name' => fake()->company(),
-            'legal_entity_name' => null,
-            'contact_email' => fake()->safeEmail(),
+            'legal_entity_name' => fake()->company(),
+            'contact_email' => fake()->unique()->safeEmail(),
             'contact_phone' => null,
             'address' => null,
             'status' => 'active',
-            'api_token_hash' => null,
-            'webhook_secret_hash' => null,
+            'api_token_hash' => hash('sha256', Str::random(48)),
+            'webhook_secret_hash' => hash('sha256', $secret),
+            'webhook_secret' => $secret, // encrypted cast
+            'instance_url' => 'https://rs-'.Str::random(4).'.example.test',
             'last_heartbeat_at' => null,
         ];
     }
@@ -39,5 +43,17 @@ class TenantFactory extends Factory
     public function terminated(): static
     {
         return $this->state(fn () => ['status' => 'terminated']);
+    }
+
+    /**
+     * Returns the plaintext token that pairs with the stored api_token_hash,
+     * so tests can authenticate as this tenant.
+     */
+    public function withPlainToken(?string &$plain = null): static
+    {
+        return $this->afterMaking(function (Tenant $tenant) use (&$plain) {
+            $plain = Str::random(48);
+            $tenant->api_token_hash = hash('sha256', $plain);
+        });
     }
 }

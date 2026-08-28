@@ -29,7 +29,7 @@ class GrupNotification implements ShouldBroadcast
     use SerializesModels;
 
     /** Shared channel prefix with the RME-Backend Grup module. */
-    public const CHANNEL_PREFIX = 'private-grup.instance.';
+    public const CHANNEL_PREFIX = 'grup.instance.';
 
     /** Contract version emitted in every payload (`version` field). */
     public const CONTRACT_VERSION = 1;

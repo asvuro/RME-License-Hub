@@ -7,6 +7,7 @@ use App\Models\Tenant;
 use App\Models\Tier;
 use App\Services\EntitlementCalculator;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Config;
 use Tests\TestCase;
 
 /**
@@ -28,6 +29,32 @@ use Tests\TestCase;
 class LicenseActivationTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        // Generate an ephemeral RSA keypair so the license token signer can run.
+        $keyPair = openssl_pkey_new([
+            'digest_alg' => 'sha256',
+            'private_key_bits' => 2048,
+            'private_key_type' => OPENSSL_KEYTYPE_RSA,
+        ]);
+        openssl_pkey_export($keyPair, $private);
+        $public = openssl_pkey_get_details($keyPair)['key'];
+
+        $dir = storage_path('keys');
+        if (!is_dir($dir)) {
+            mkdir($dir, 0700, true);
+        }
+        $privPath = $dir.'/test_license_private.pem';
+        $pubPath = $dir.'/test_license_public.pem';
+        file_put_contents($privPath, $private);
+        file_put_contents($pubPath, $public);
+
+        Config::set('license.private_key_path', $privPath);
+        Config::set('license.public_key_path', $pubPath);
+    }
 
     private function buildActiveSetup(string $hardwareId = 'HW-ACTIVATE'): array
     {

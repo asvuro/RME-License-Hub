@@ -3,8 +3,19 @@
 use App\Events\GrupNotification;
 use Illuminate\Support\Facades\Broadcast;
 
-Broadcast::channel('App.Models.User.{id}', function ($user, $id) {
-    return (int) $user->id === (int) $id;
+/*
+|--------------------------------------------------------------------------
+| Broadcast Channels
+|--------------------------------------------------------------------------
+*/
+
+// Private tenant channels - tenant instances authenticate via their
+// service-to-service token. The authorization happens through the
+// /broadcasting/auth endpoint which is overridden by our custom
+// tenant broadcasting auth controller.
+Broadcast::channel('tenant.{tenantId}', function ($user, string $tenantId) {
+    // Hub admin can subscribe to any tenant channel for monitoring
+    return true;
 });
 
 /*
