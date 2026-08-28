@@ -235,3 +235,49 @@ putus, cabang itu TIDAK PUNYA cara lain mengetahui status rujukannya berubah
 sampai ada trigger lain (mis. user buka halaman rujukan dan index() di-refresh
 manual — TAPI `index()` di client hanya query tabel LOKAL, bukan re-fetch dari
 hub, jadi bahkan itu pun tidak akan ke-update tanpa event masuk).
+
+---
+
+## 8. Gap "fallback delivery" DITUTUP (2026-08-28, lanjutan §7)
+
+Dibangun `WebhookDispatcher::dispatchGroupNotification()`/`deliverGroupNotification()`:
+setiap `GroupRelayService::broadcast()` sekarang mengirim DUA jalur sekaligus
+— Reverb (instan, butuh koneksi aktif) DAN push HTTP tertandatangani ke
+`POST /api/v1/grup/relay/notifications` klien (durable, di-antre, retry
+dengan backoff, pakai `event_id` yang SAMA supaya dedup klien membuat kedua
+jalur aman diterima bersamaan). Kalau klien membalas 409 (nonce sudah
+diproses), dianggap terkirim, bukan gagal — jadi tidak retry selamanya.
+
+**3 bug NYATA lagi ditemukan** saat membangun & memverifikasi jalur ini
+sungguhan (total 6 bug sesi ini, §6+§7+§8):
+
+4. `GroupHubSignature` (dipakai push ini DAN proxy data pasien `relayProxy`
+   yang sudah ada sejak awal) menandatangani dengan prefix `sha256=` di
+   `X-RME-Signature`, tapi `VerifyGroupHubSignature` klien membandingkan hex
+   HMAC MENTAH tanpa prefix — **setiap request bertanda tangan dari hub yang
+   pernah dibuat, dari awal, selalu gagal verifikasi**. Prefix dihapus.
+5. `source_branch_id` dikirim sebagai `instance_id` (string spt `INST-SIB`),
+   padahal klien resolve lewat `Branch::where('hub_branch_id', ...)` — kolom
+   UUID Tenant hub. Setiap event relay gagal validasi `uuid` di klien.
+   Diperbaiki di `GroupRelayService::relayToGroup()` + 2 titik broadcast
+   referral di `GroupApiController`.
+6. `GET /context` mengembalikan field grup RATA di level atas, padahal
+   `MembershipSynchronizer::sync()` klien memvalidasi objek `group` BERSARANG
+   (`group.id`, `group.legal_name`, dst). Endpoint ini **sebelumnya nol
+   cakupan test** di hub — ditambahkan `GroupContextTest.php` yang menjalankan
+   response lewat rules validasi PERSIS milik klien (disalin sengaja) supaya
+   pergeseran kontrak seperti ini gagal keras, bukan diam-diam lolos.
+
+**Verifikasi akhir sungguhan**: hub relay → job antrian → push HTTP
+bertanda tangan → middleware `VerifyGroupHubSignature` ASLI menerima →
+`RealtimeEventProcessor` ASLI memproses → `MembershipSynchronizer` sinkron
+→ tabel `Branch`/`Group` lokal klien ter-update benar. Rantai penuh, tanpa
+satu pun bagian di-mock.
+
+**Pelajaran diperkuat**: dari 6 bug sesi ini, HAMPIR SEMUA baru ketahuan
+setelah menjalankan pemrosesan PENUH di sisi klien (bukan cuma memanggil
+satu method client secara terisolasi) — bug #6 khususnya baru muncul satu
+langkah SETELAH `context()` sendiri "berhasil" (parsing JSON sukses), karena
+gagalnya ada di validasi struktur data SATU LAPIS lebih dalam. Verifikasi
+sungguhan harus menjalankan alur BISNIS penuh (event masuk → diproses →
+tersimpan), bukan berhenti di "response HTTP-nya 200".
