@@ -2,13 +2,17 @@
 
 namespace App\Models;
 
+use Illuminate\Auth\Authenticatable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Contracts\Auth\Authenticatable as AuthenticatableContract;
 
-class Tenant extends Model
+class Tenant extends Model implements AuthenticatableContract
 {
+    use Authenticatable;
+
     protected $keyType = 'string';
     public $incrementing = false;
 
