@@ -1,0 +1,44 @@
+# Never bake host secrets or host-specific state into the image.
+.env
+.env.*
+!.env.example
+storage/keys/*.pem
+storage/keys/*.key
+
+# Host-installed dependencies — the image installs its own via composer/npm
+# inside the correct PHP/Node environment; copying the host's vendor/ risks
+# an incompatible build (extensions, PHP version) silently baked in.
+vendor/
+node_modules/
+
+# Stale cached bootstrap files from local `artisan config:cache` /
+# `route:cache` runs — these are environment-specific (e.g. reference
+# require-dev-only providers like Pail, absent in a --no-dev build) and
+# MUST be regenerated inside the container, never copied from the host.
+# Found via a real Docker build failure ("Class Laravel\Pail\PailServiceProvider
+# not found"), not by review.
+bootstrap/cache/*.php
+
+# Runtime state that should never ship in the image.
+storage/logs/*
+storage/framework/cache/data/*
+storage/framework/sessions/*
+storage/framework/views/*
+storage/framework/testing/*
+database/database.sqlite
+
+# VCS / editor / CI noise.
+.git/
+.gitignore
+.github/
+.idea/
+.vscode/
+*.md
+!README.md
+
+# Local dev worktrees (hermes multi-agent sessions).
+.worktrees/
+
+# Test suite isn't needed in the production image.
+tests/
+phpunit.xml

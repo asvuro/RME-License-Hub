@@ -22,7 +22,11 @@ services:
       - hub-db-data:/var/lib/mysql
     ports:
       # Hanya untuk debugging lokal; di produksi hapus expose ini.
-      - "127.0.0.1:3306:3306"
+      # Host port 3307 (bukan 3306 default) — hindari bentrok dengan MariaDB
+      # host lain yang mungkin sudah jalan di 3306 (mis. RME-Backend saat
+      # dev). Container-ke-container tetap lewat hub-db:3306 (hostname
+      # internal, tidak terpengaruh port publish ini).
+      - "127.0.0.1:3307:3306"
     healthcheck:
       test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
       interval: 10s
@@ -98,6 +102,8 @@ services:
     env_file: [.env]
     environment:
       APP_ENV: ${APP_ENV:-production}
+      DB_HOST: hub-db
+      DB_PORT: 3306
       BROADCAST_CONNECTION: reverb
       REVERB_HOST: hub-reverb
       REVERB_SERVER_HOST: 0.0.0.0
@@ -111,6 +117,8 @@ services:
     expose:
       - "8080"
     depends_on:
+      hub-db:
+        condition: service_healthy
       hub-redis:
         condition: service_healthy
     networks: [hub-net]
@@ -125,9 +133,18 @@ services:
     env_file: [.env]
     environment:
       APP_ENV: ${APP_ENV:-production}
+      DB_HOST: hub-db
+      DB_PORT: 3306
       QUEUE_CONNECTION: redis
       REDIS_HOST: hub-redis
       REDIS_PORT: 6379
+      # The queue worker is what actually PUBLISHES GrupNotification to
+      # Reverb's REST API (BroadcastEvent job) — without this override it
+      # fell back to .env's REVERB_HOST (host-machine dev value, e.g.
+      # "localhost"), which is unreachable from inside this container.
+      # Found via a real WebSocket end-to-end test, not review.
+      BROADCAST_CONNECTION: reverb
+      REVERB_HOST: hub-reverb
     depends_on:
       hub-db:
         condition: service_healthy
@@ -146,7 +163,12 @@ services:
     environment:
       APP_ENV: ${APP_ENV:-production}
       DB_HOST: hub-db
+      DB_PORT: 3306
       REDIS_HOST: hub-redis
+      REDIS_PORT: 6379
+      QUEUE_CONNECTION: redis
+      BROADCAST_CONNECTION: reverb
+      REVERB_HOST: hub-reverb
     depends_on:
       hub-db:
         condition: service_healthy
